@@ -1,6 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { Bot, Circle, Send } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { Separator } from "@/src/components/ui/separator";
+import { Textarea } from "@/src/components/ui/textarea";
 
 type ChatMessage = {
   id: number;
@@ -37,67 +45,61 @@ export default function ChatPanel() {
   }
 
   return (
-    <aside className="flex min-h-0 flex-col border-l border-white/[0.08] bg-[#111419]">
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-white/[0.06] px-4">
-        <span className="flex size-6 items-center justify-center rounded-md bg-violet-400/10 text-violet-300">
-          <svg aria-hidden="true" className="size-3.5" viewBox="0 0 24 24" fill="none">
-            <path d="M12 3v4M12 17v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M3 12h4M17 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-            <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.7" />
-          </svg>
-        </span>
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-          AI Agent
-        </h2>
-        <span className="ml-auto rounded-full border border-violet-300/20 px-2 py-0.5 text-[10px] text-violet-300/80">
-          Preview
-        </span>
-      </div>
+    <aside className="flex min-h-0 flex-col border-l border-slate-800/90 bg-[#101318] p-2 max-[800px]:hidden">
+      <Card className="flex min-h-0 flex-1 flex-col border-0 bg-transparent shadow-none">
+        <CardHeader className="flex h-9 shrink-0 flex-row items-center gap-2 p-1">
+          <Avatar className="size-6 rounded-md bg-blue-500/15 text-blue-300">
+            <AvatarFallback><Bot aria-hidden="true" className="size-3.5" /></AvatarFallback>
+          </Avatar>
+          <CardTitle className="text-[10px] uppercase tracking-[0.14em] text-slate-400">AI Assistant</CardTitle>
+          <Badge variant="outline" className="ml-auto gap-1 border-blue-400/25 px-1.5 py-0 text-[9px] text-blue-300">
+          <Circle aria-hidden="true" className="size-1.5 fill-blue-400 text-blue-400" />
+          Ready
+          </Badge>
+        </CardHeader>
+        <Separator className="mt-2" />
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+      <ScrollArea className="flex-1 space-y-4 p-1 pt-3">
         {messages.map((message) => (
-          <div key={message.id} className={`flex gap-2.5 ${message.role === "user" ? "flex-row-reverse" : ""}`}>
-            <div className={`flex size-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold ${
-              message.role === "user"
-                ? "bg-cyan-400/15 text-cyan-300"
-                : "bg-violet-400/15 text-violet-300"
-            }`}>
-              {message.role === "user" ? "You" : "AI"}
-            </div>
-            <div className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-5 ${
-              message.role === "user"
-                ? "bg-cyan-400/10 text-cyan-50"
-                : "border border-white/[0.06] bg-white/[0.03] text-slate-400"
-            }`}>
-              {message.content}
+          <div key={message.id} className="mb-4 flex gap-2">
+            <Avatar className={message.role === "user" ? "bg-blue-500/15 text-blue-300" : "bg-slate-700/60 text-slate-300"}>
+              <AvatarFallback>{message.role === "user" ? "U" : "AI"}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{message.role === "user" ? "You" : "Assistant"}</p>
+              </div>
+              <p className="text-xs leading-5 text-slate-300">{message.content}</p>
             </div>
           </div>
         ))}
-      </div>
+      </ScrollArea>
 
-      <div className="border-t border-white/[0.06] p-3">
-        <form onSubmit={handleSubmit} className="rounded-lg border border-white/10 bg-[#0d0f12] p-2 focus-within:border-violet-300/40">
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Ask about this project..."
-            rows={2}
-            className="w-full resize-none bg-transparent px-1 text-xs leading-5 text-slate-200 outline-none placeholder:text-slate-600"
-          />
-          <div className="mt-2 flex items-center justify-between">
-            <span className="text-[10px] text-slate-600">Local placeholder</span>
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-violet-300 px-2.5 text-[11px] font-semibold text-slate-950 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Send
-              <svg aria-hidden="true" className="size-3" viewBox="0 0 16 16" fill="none">
-                <path d="m3 8 9-4-2.5 8-2-3-4.5-1Z" fill="currentColor" />
-              </svg>
-            </button>
-          </div>
-        </form>
-      </div>
+        <Separator className="mb-3" />
+        <CardContent className="p-1">
+          <form onSubmit={handleSubmit} className="space-y-2">
+            <Textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="Ask the agent..."
+              rows={3}
+              aria-label="Ask the agent"
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-600">Mock AI · Enter to send</span>
+              <Button
+                type="submit"
+                disabled={!input.trim()}
+                className="bg-blue-500 text-white hover:bg-blue-400"
+                aria-label="Send message"
+              >
+                <Send aria-hidden="true" className="size-3" />
+                <span>Send</span>
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </aside>
   );
 }

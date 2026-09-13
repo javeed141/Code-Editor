@@ -10,7 +10,7 @@ type CodeEditorProps = {
 
 export default function CodeEditor({ value, language, onChange }: CodeEditorProps) {
   return (
-    <div className="h-full min-h-[360px] w-full overflow-hidden bg-[#0d0f12]">
+    <div className="h-full min-h-[280px] w-full overflow-hidden bg-[#0b0e12]">
       <Editor
         theme="vs-dark"
         language={language}
@@ -19,11 +19,11 @@ export default function CodeEditor({ value, language, onChange }: CodeEditorProp
         options={{
           automaticLayout: true,
           minimap: { enabled: true },
-          fontSize: 14,
-          fontFamily: "var(--font-geist-mono), monospace",
+          fontSize: 13,
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
           wordWrap: "off",
           scrollBeyondLastLine: false,
-          padding: { top: 16, bottom: 16 },
+          padding: { top: 12, bottom: 12 },
           renderLineHighlight: "line",
           smoothScrolling: true,
           tabSize: 2,

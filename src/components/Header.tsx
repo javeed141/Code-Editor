@@ -1,60 +1,83 @@
+import { Code2, GitCommitHorizontal, Save, TerminalSquare } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/src/components/ui/breadcrumb";
+import { Separator } from "@/src/components/ui/separator";
+import { Select } from "@/src/components/ui/select";
+import { Tooltip } from "@/src/components/ui/tooltip";
+
 type HeaderProps = {
   repositoryName: string;
   hasModifiedFile: boolean;
   onSave: () => void;
+  onCommandOpen: () => void;
 };
 
 export default function Header({
   repositoryName,
   hasModifiedFile,
   onSave,
+  onCommandOpen,
 }: HeaderProps) {
   return (
-    <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#101318] px-5">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
-          <svg aria-hidden="true" className="size-5" viewBox="0 0 24 24" fill="none">
-            <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 6l-4 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-800/90 bg-[#0f1217] px-3 sm:px-4">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex size-7 items-center justify-center rounded-md bg-blue-500/15 text-blue-300">
+          <Code2 aria-hidden="true" className="size-4" />
         </div>
-        <div className="min-w-0">
-          <h1 className="truncate text-sm font-semibold tracking-wide text-slate-100">
-            AI Code Editor
-          </h1>
-          <p className="mt-0.5 truncate text-xs text-slate-500">
-            Local workspace
-          </p>
-        </div>
-        <span className="mx-1 h-5 w-px bg-white/10" />
-        <div className="flex min-w-0 items-center gap-2 text-sm text-slate-300">
-          <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.65)]" />
-          <span className="truncate">{repositoryName}</span>
-        </div>
+        <Breadcrumb className="hidden sm:flex">
+          <BreadcrumbList>
+            <BreadcrumbItem><BreadcrumbLink className="font-semibold text-slate-100">AI Code Editor</BreadcrumbLink></BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <span className="flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-blue-400" />
+                <Badge variant="outline" className="truncate border-slate-700/80 px-1.5 py-0 text-[10px]">{repositoryName}</Badge>
+              </span>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        <span className="truncate text-[13px] font-semibold text-slate-100 sm:hidden">AI Code Editor</span>
+        <Separator orientation="vertical" className="my-1 hidden h-5 sm:block" />
+        <Select aria-label="Repository" defaultValue={repositoryName} className="hidden h-7 max-w-32 sm:block">
+          <option value={repositoryName}>{repositoryName}</option>
+          <option value="coming-soon">Other repositories (soon)</option>
+        </Select>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={!hasModifiedFile}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-slate-200 transition hover:border-cyan-400/40 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
-            <path d="M5 4h12l2 2v14H5V4Z M8 4v5h8V4M8 20v-7h8v7" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-          </svg>
-          Save
-        </button>
-        <button
-          type="button"
-          disabled
-          title="Git integration is not available in Day 1"
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-cyan-400 px-3 text-xs font-semibold text-slate-950 opacity-45"
-        >
-          <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
-            <path d="M8 12h8M12 8v8M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          </svg>
-          Commit
-        </button>
+      <div className="flex items-center gap-1.5">
+        <Tooltip label="Open command menu (⌘K)">
+          <Button variant="ghost" size="icon" onClick={onCommandOpen} aria-label="Open command menu">
+            <TerminalSquare aria-hidden="true" className="size-3.5" />
+          </Button>
+        </Tooltip>
+        <Tooltip label={hasModifiedFile ? "Save changes" : "No changes to save"}>
+          <Button
+            variant={hasModifiedFile ? "default" : "ghost"}
+            onClick={onSave}
+            disabled={!hasModifiedFile}
+            aria-label="Save changes"
+          >
+            <Save aria-hidden="true" className="size-3.5" />
+            Save
+          </Button>
+        </Tooltip>
+        <Tooltip label="GitHub integration is coming later">
+          <Button
+            variant="outline"
+            disabled
+            aria-label="Commit changes (unavailable)"
+          >
+            <GitCommitHorizontal aria-hidden="true" className="size-3.5" />
+            Commit
+          </Button>
+        </Tooltip>
       </div>
     </header>
   );
