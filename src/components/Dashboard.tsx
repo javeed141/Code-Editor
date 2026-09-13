@@ -335,15 +335,16 @@ export default function Dashboard() {
     });
   }
 
-  // Sign out and clear all information
+  // Sign out and clear ALL browser data
   async function handleLogout() {
+    // 1. Tell the server to expire the session cookie
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
-      // ignore
+      // ignore network errors — still continue cleanup
     }
 
-    // 1. Clear all in-memory React state
+    // 2. Clear all in-memory React state
     setAuthenticatedUser(null);
     setSelectedRepository(null);
     setRepositories([]);
@@ -352,10 +353,19 @@ export default function Dashboard() {
     setSelectedPath(null);
     setRepositoryTree([]);
 
-    // 2. Clear browser session and local storage caches
+    // 3. Nuke every client-readable cookie (HttpOnly cookies are handled server-side above)
+    try {
+      document.cookie.split(";").forEach((c) => {
+        const cookieName = c.split("=")[0].trim();
+        document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      });
+    } catch {
+      // ignore
+    }
+
+    // 4. Clear ALL sessionStorage and localStorage (keep theme preference only)
     try {
       sessionStorage.clear();
-      // Keep only theme preference if present
       const currentTheme = localStorage.getItem("ai-code-editor-theme");
       localStorage.clear();
       if (currentTheme) {
@@ -365,8 +375,8 @@ export default function Dashboard() {
       // ignore storage errors
     }
 
-    // 3. Clean reload to root URL
-    window.location.href = "/";
+    // 5. Hard redirect to home — full page reload so no stale JS state remains
+    window.location.replace("/");
   }
 
   // Keybindings (Cmd/Ctrl + K, Cmd/Ctrl + S)
