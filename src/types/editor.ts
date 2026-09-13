@@ -4,6 +4,8 @@ export type RepoFile = {
   type: "file" | "folder";
   content?: string;
   children?: RepoFile[];
+  sha?: string;
+  size?: number;
 };
 
 export type OpenFile = {
@@ -13,4 +15,9 @@ export type OpenFile = {
   originalContent: string;
   content: string;
   isModified: boolean;
+  sha?: string;
+  size?: number;
+  isBinary?: boolean;
+  isTooLarge?: boolean;
+  message?: string;
 };
