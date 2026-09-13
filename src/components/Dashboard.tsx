@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Keyboard, Save, Search, X } from "lucide-react";
 import ChatPanel from "@/src/components/ChatPanel";
 import CodeEditor from "@/src/components/CodeEditor";
@@ -53,6 +53,22 @@ export default function Dashboard() {
 
   const selectedFile = selectedPath ? openFiles[selectedPath] : undefined;
 
+  const handleSave = useCallback(() => {
+    if (!selectedPath) return;
+    setOpenFiles((current) => {
+      const file = current[selectedPath];
+      if (!file) return current;
+      return {
+        ...current,
+        [selectedPath]: {
+          ...file,
+          originalContent: file.content,
+          isModified: false,
+        },
+      };
+    });
+  }, [selectedPath]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -66,7 +82,7 @@ export default function Dashboard() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedPath]);
+  }, [handleSave]);
 
   function handleFileSelect(path: string) {
     const file = findFileByPath(mockRepository, path);
@@ -104,22 +120,6 @@ export default function Dashboard() {
           ...file,
           content,
           isModified: content !== file.originalContent,
-        },
-      };
-    });
-  }
-
-  function handleSave() {
-    if (!selectedPath) return;
-    setOpenFiles((current) => {
-      const file = current[selectedPath];
-      if (!file) return current;
-      return {
-        ...current,
-        [selectedPath]: {
-          ...file,
-          originalContent: file.content,
-          isModified: false,
         },
       };
     });
@@ -229,6 +229,7 @@ export default function Dashboard() {
                 </Tabs>
                 <div className="min-h-0 flex-1">
                   <CodeEditor
+                    path={selectedFile.path}
                     value={selectedFile.content}
                     language={selectedFile.language}
                     onChange={handleContentChange}

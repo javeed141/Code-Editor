@@ -14,26 +14,27 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = "ai-code-editor-theme";
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
+function getInitialTheme(): Theme {
+  if (typeof window !== "undefined") {
     try {
       const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
       if (stored === "dark" || stored === "light") {
-        setThemeState(stored);
-      } else if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-        setThemeState("light");
+        return stored;
+      }
+      if (window.matchMedia("(prefers-color-scheme: light)").matches) {
+        return "light";
       }
     } catch {
       // Ignore localStorage errors
     }
-    setMounted(true);
-  }, []);
+  }
+  return "dark";
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
-    if (!mounted) return;
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
@@ -49,7 +50,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore localStorage errors
     }
-  }, [theme, mounted]);
+  }, [theme]);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
@@ -73,4 +74,3 @@ export function useTheme(): ThemeContextType {
   }
   return context;
 }
-
