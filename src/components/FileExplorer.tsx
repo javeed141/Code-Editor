@@ -1,6 +1,9 @@
+"use client";
+
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, File, FileCode2, FileJson2, Folder, RefreshCw, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Search } from "lucide-react";
 import type { OpenFile, RepoFile } from "@/src/types/editor";
+import FileIcon from "@/src/components/FileIcon";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
@@ -14,20 +17,6 @@ type FileExplorerProps = {
   openFiles: Record<string, OpenFile>;
   onFileSelect: (path: string) => void;
 };
-
-function FileIcon({ name, isFolder = false }: { name: string; isFolder?: boolean }) {
-  if (isFolder) {
-    return <Folder aria-hidden="true" className="size-3.5 shrink-0 text-amber-300/75" />;
-  }
-
-  if (name.endsWith(".js") || name.endsWith(".ts")) {
-    return <FileCode2 aria-hidden="true" className="size-3.5 shrink-0 text-yellow-300/80" />;
-  }
-  if (name.endsWith(".json")) {
-    return <FileJson2 aria-hidden="true" className="size-3.5 shrink-0 text-emerald-300/80" />;
-  }
-  return <File aria-hidden="true" className="size-3.5 shrink-0 text-slate-500" />;
-}
 
 function TreeNode({
   node,
@@ -52,42 +41,53 @@ function TreeNode({
 
   return (
     <div>
-      <Button
+      <button
         type="button"
         onClick={() => (isFolder ? setIsExpanded((current) => !current) : onFileSelect(node.path))}
-        className={`group flex h-7 w-full justify-start rounded-sm pr-2 text-left text-xs ${
+        className={`group flex h-6 w-full items-center gap-1.5 rounded-[2px] pr-2 text-left text-xs transition-colors cursor-pointer select-none ${
           isSelected
-            ? "border-l-2 border-blue-400 bg-red text-slate-100"
-            : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-200"
+            ? "bg-[var(--list-active)] text-[var(--list-active-fg)] font-medium"
+            : "text-[var(--foreground)] hover:bg-[var(--list-hover)]"
         }`}
-        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        style={{ paddingLeft: `${8 + depth * 14}px` }}
         aria-expanded={isFolder ? expanded : undefined}
         aria-current={isSelected ? "page" : undefined}
       >
         {isFolder ? (
-          expanded ? (
-            <ChevronDown aria-hidden="true" className="size-3 text-slate-600" />
-          ) : (
-            <ChevronRight aria-hidden="true" className="size-3 text-slate-600" />
-          )
+          <span className="flex size-3.5 items-center justify-center text-[var(--text-muted)]">
+            {expanded ? (
+              <ChevronDown aria-hidden="true" className="size-3" />
+            ) : (
+              <ChevronRight aria-hidden="true" className="size-3" />
+            )}
+          </span>
         ) : (
-          <span className="size-3" />
+          <span className="size-3.5" />
         )}
-        <FileIcon name={node.name} isFolder={isFolder} />
+        <FileIcon name={node.name} isFolder={isFolder} isOpen={expanded} />
         <span className="truncate">{node.name}</span>
-        {isModified && <span className="ml-auto text-[11px] text-amber-300">●</span>}
-      </Button>
-      {isFolder && expanded && node.children?.map((child) => (
-        <TreeNode
-          key={child.path}
-          node={child}
-          depth={depth + 1}
-          selectedPath={selectedPath}
-          openFiles={openFiles}
-          onFileSelect={onFileSelect}
-          forceExpanded={forceExpanded}
-        />
-      ))}
+        {isModified && (
+          <span
+            className="ml-auto text-[10px] text-amber-400"
+            title="Unsaved changes"
+          >
+            ●
+          </span>
+        )}
+      </button>
+      {isFolder &&
+        expanded &&
+        node.children?.map((child) => (
+          <TreeNode
+            key={child.path}
+            node={child}
+            depth={depth + 1}
+            selectedPath={selectedPath}
+            openFiles={openFiles}
+            onFileSelect={onFileSelect}
+            forceExpanded={forceExpanded}
+          />
+        ))}
     </div>
   );
 }
@@ -117,23 +117,39 @@ export default function FileExplorer({
   }, [files, query]);
 
   return (
-    <aside className="flex min-h-0 flex-col border-r border-slate-800/90 bg-[#101318]">
+    <aside className="flex h-full min-h-0 flex-col border-r border-[var(--border-color)] bg-[var(--sidebar-bg)] select-none">
       <div className="flex h-9 shrink-0 items-center justify-between px-3">
-        <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Files</h2>
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+          Explorer
+        </h2>
         <Tooltip label="Refresh file tree">
-          <Button variant="ghost" size="icon" className="size-6" aria-label="Refresh file tree">
-            <RefreshCw aria-hidden="true" className="size-3 text-slate-500" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-[var(--text-muted)] hover:text-[var(--foreground)]"
+            aria-label="Refresh file tree"
+          >
+            <RefreshCw aria-hidden="true" className="size-3" />
           </Button>
         </Tooltip>
       </div>
       <div className="px-2 pb-2">
         <div className="relative">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-2 top-2 size-3 text-slate-500" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter files..." aria-label="Filter files" className="h-7 pl-7 text-[11px]" />
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-2 top-2 size-3 text-[var(--text-muted)]"
+          />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter files..."
+            aria-label="Filter files"
+            className="h-7 pl-7 text-[11px]"
+          />
         </div>
       </div>
       <Separator />
-      <ScrollArea className="flex-1 px-1.5 py-2">
+      <ScrollArea className="flex-1 px-1 py-1.5">
         {visibleFiles.length > 0 ? (
           visibleFiles.map((file) => (
             <TreeNode
@@ -146,13 +162,13 @@ export default function FileExplorer({
               forceExpanded={forceExpanded}
             />
           ))
+        ) : query ? (
+          <p className="px-3 py-4 text-xs text-[var(--text-muted)]">No matching files.</p>
         ) : (
-          query ? <p className="px-2 py-5 text-xs text-slate-600">No matching files.</p> : (
-            <div className="space-y-2 px-2 py-3">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-          )
+          <div className="space-y-2 px-3 py-3">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-32" />
+          </div>
         )}
       </ScrollArea>
     </aside>

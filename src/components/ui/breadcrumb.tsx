@@ -7,7 +7,7 @@ export function Breadcrumb({ className, ...props }: React.HTMLAttributes<HTMLEle
 }
 
 export function BreadcrumbList({ className, ...props }: React.HTMLAttributes<HTMLOListElement>) {
-  return <ol className={cn("flex min-w-0 items-center gap-1 text-xs text-slate-500", className)} {...props} />;
+  return <ol className={cn("flex min-w-0 items-center gap-1 text-xs text-[var(--text-muted)]", className)} {...props} />;
 }
 
 export function BreadcrumbItem({ className, ...props }: React.LiHTMLAttributes<HTMLLIElement>) {
@@ -15,13 +15,13 @@ export function BreadcrumbItem({ className, ...props }: React.LiHTMLAttributes<H
 }
 
 export function BreadcrumbLink({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("truncate hover:text-slate-200", className)} {...props} />;
+  return <span className={cn("truncate hover:text-[var(--foreground)] cursor-pointer transition-colors", className)} {...props} />;
 }
 
 export function BreadcrumbPage({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
-  return <span aria-current="page" className={cn("truncate text-slate-300", className)} {...props} />;
+  return <span aria-current="page" className={cn("truncate font-medium text-[var(--foreground)]", className)} {...props} />;
 }
 
 export function BreadcrumbSeparator({ children, className, ...props }: React.HTMLAttributes<HTMLLIElement> & { children?: ReactNode }) {
-  return <li aria-hidden="true" className={cn("text-slate-700", className)} {...props}>{children ?? <ChevronRight className="size-3" />}</li>;
+  return <li aria-hidden="true" className={cn("text-[var(--text-muted)] opacity-60", className)} {...props}>{children ?? <ChevronRight className="size-3" />}</li>;
 }

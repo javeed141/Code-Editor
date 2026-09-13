@@ -22,7 +22,7 @@ export default function ChatPanel() {
     {
       id: 1,
       role: "assistant",
-      content: "I am ready to help you explore this project.",
+      content: "Hello! I am your AI assistant. How can I help you with this project?",
     },
   ]);
 
@@ -38,59 +38,79 @@ export default function ChatPanel() {
       {
         id: id + 1,
         role: "assistant",
-        content: "The AI agent will be connected in a future day.",
+        content: "I have received your request. AI agent integration is ready for connection.",
       },
     ]);
     setInput("");
   }
 
   return (
-    <aside className="flex min-h-0 flex-col border-l border-slate-800/90 bg-[#101318] p-2 max-[800px]:hidden">
+    <aside className="flex h-full min-h-0 flex-col border-l border-[var(--border-color)] bg-[var(--sidebar-bg)] p-2 max-[800px]:hidden select-none">
       <Card className="flex min-h-0 flex-1 flex-col border-0 bg-transparent shadow-none">
-        <CardHeader className="flex h-9 shrink-0 flex-row items-center gap-2 p-1">
-          <Avatar className="size-6 rounded-md bg-blue-500/15 text-blue-300">
-            <AvatarFallback><Bot aria-hidden="true" className="size-3.5" /></AvatarFallback>
+        <CardHeader className="flex h-9 shrink-0 flex-row items-center gap-2 bg-transparent p-1">
+          <Avatar className="size-6 rounded-[3px] bg-[#007acc] text-white">
+            <AvatarFallback>
+              <Bot aria-hidden="true" className="size-3.5" />
+            </AvatarFallback>
           </Avatar>
-          <CardTitle className="text-[10px] uppercase tracking-[0.14em] text-slate-400">AI Assistant</CardTitle>
-          <Badge variant="outline" className="ml-auto gap-1 border-blue-400/25 px-1.5 py-0 text-[9px] text-blue-300">
-          <Circle aria-hidden="true" className="size-1.5 fill-blue-400 text-blue-400" />
-          Ready
+          <CardTitle className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+            AI Assistant
+          </CardTitle>
+          <Badge
+            variant="outline"
+            className="ml-auto gap-1 border-[#007acc]/30 px-1.5 py-0 text-[10px] text-[#007acc] dark:text-[#38bdf8]"
+          >
+            <Circle aria-hidden="true" className="size-1.5 fill-current" />
+            Ready
           </Badge>
         </CardHeader>
         <Separator className="mt-2" />
 
-      <ScrollArea className="flex-1 space-y-4 p-1 pt-3">
-        {messages.map((message) => (
-          <div key={message.id} className="mb-4 flex gap-2">
-            <Avatar className={message.role === "user" ? "bg-blue-500/15 text-blue-300" : "bg-slate-700/60 text-slate-300"}>
-              <AvatarFallback>{message.role === "user" ? "U" : "AI"}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex items-center gap-2">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{message.role === "user" ? "You" : "Assistant"}</p>
+        <ScrollArea className="flex-1 space-y-4 p-1 pt-3">
+          {messages.map((message) => (
+            <div key={message.id} className="mb-3.5 flex gap-2">
+              <Avatar
+                className={`size-6 rounded-[3px] text-xs font-semibold ${
+                  message.role === "user"
+                    ? "bg-[#007acc] text-white"
+                    : "bg-[rgba(128,128,128,0.25)] text-[var(--foreground)]"
+                }`}
+              >
+                <AvatarFallback>{message.role === "user" ? "U" : "AI"}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    {message.role === "user" ? "You" : "Copilot"}
+                  </p>
+                </div>
+                <p className="text-xs leading-5 text-[var(--foreground)] break-words">
+                  {message.content}
+                </p>
               </div>
-              <p className="text-xs leading-5 text-slate-300">{message.content}</p>
             </div>
-          </div>
-        ))}
-      </ScrollArea>
+          ))}
+        </ScrollArea>
 
-        <Separator className="mb-3" />
+        <Separator className="mb-2" />
         <CardContent className="p-1">
           <form onSubmit={handleSubmit} className="space-y-2">
             <Textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask the agent..."
+              placeholder="Ask Copilot a question or type / for commands..."
               rows={3}
               aria-label="Ask the agent"
+              className="resize-none"
             />
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-600">Mock AI · Enter to send</span>
+              <span className="text-[10px] text-[var(--text-muted)]">
+                Press Enter to send
+              </span>
               <Button
                 type="submit"
                 disabled={!input.trim()}
-                className="bg-blue-500 text-white hover:bg-blue-400"
+                className="bg-[#0e639c] text-white hover:bg-[#1177bb]"
                 aria-label="Send message"
               >
                 <Send aria-hidden="true" className="size-3" />

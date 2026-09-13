@@ -9,6 +9,60 @@ export const mockRepository: RepoFile[] = [
     type: "folder",
     children: [
       {
+        path: "src/components",
+        name: "components",
+        type: "folder",
+        children: [
+          {
+            path: "src/components/App.tsx",
+            name: "App.tsx",
+            type: "file",
+            content: `import React, { useState } from "react";
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="container">
+      <h1>AI Code Editor Demo</h1>
+      <p>Current count: {count}</p>
+      <button onClick={() => setCount(count + 1)}>Increment</button>
+    </div>
+  );
+}
+`,
+          },
+          {
+            path: "src/components/styles.css",
+            name: "styles.css",
+            type: "file",
+            content: `/* Application styles */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #007acc;
+}
+
+button {
+  background-color: #007acc;
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0062a3;
+}
+`,
+          },
+        ],
+      },
+      {
         path: "src/routes",
         name: "routes",
         type: "folder",
@@ -23,7 +77,10 @@ const router = express.Router();
 
 router.get("/", (req, res) => {
   res.json({
-    users: []
+    users: [
+      { id: 1, name: "Alice", role: "admin" },
+      { id: 2, name: "Bob", role: "developer" }
+    ]
   });
 });
 
@@ -42,7 +99,7 @@ module.exports = router;
             name: "logger.js",
             type: "file",
             content: `function logger(req, res, next) {
-  console.log(\`\${req.method} \${req.url}\`);
+  console.log(\`[\${new Date().toISOString()}] \${req.method} \${req.url}\`);
   next();
 }
 
@@ -79,6 +136,30 @@ app.listen(3000, () => {
     ],
   },
   {
+    path: "public",
+    name: "public",
+    type: "folder",
+    children: [
+      {
+        path: "public/index.html",
+        name: "index.html",
+        type: "file",
+        content: `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Code Editor Demo</title>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+`,
+      },
+    ],
+  },
+  {
     path: "package.json",
     name: "package.json",
     type: "file",
@@ -87,12 +168,41 @@ app.listen(3000, () => {
   "version": "1.0.0",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "build": "tsc"
   },
   "dependencies": {
-    "express": "^5.0.0"
+    "express": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }
+`,
+  },
+  {
+    path: "tsconfig.json",
+    name: "tsconfig.json",
+    type: "file",
+    content: `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true
+  }
+}
+`,
+  },
+  {
+    path: ".gitignore",
+    name: ".gitignore",
+    type: "file",
+    content: `node_modules
+.next
+dist
+.env
+*.log
 `,
   },
   {
@@ -101,7 +211,7 @@ app.listen(3000, () => {
     type: "file",
     content: `# Demo Project
 
-A small Express service used to explore the AI Code Editor.
+A small Express & React service used to explore the AI Code Editor.
 
 ## Getting started
 

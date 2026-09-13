@@ -28,7 +28,15 @@ export function Tabs({ defaultValue = "", value: controlledValue, onValueChange,
 }
 
 export function TabsList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("inline-flex items-center rounded-md bg-slate-900/70 p-0.5", className)} {...props} />;
+  return (
+    <div
+      className={cn(
+        "inline-flex items-stretch overflow-x-auto bg-[var(--tabbar-bg)]",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 type TabsTriggerProps = HTMLAttributes<HTMLButtonElement> & { value: string };
@@ -43,8 +51,10 @@ export function TabsTrigger({ className, value, children, ...props }: TabsTrigge
       aria-selected={active}
       onClick={() => context?.setValue(value)}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-[11px] text-slate-500 transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400/70",
-        active && "bg-[#1b2430] text-slate-100 shadow-sm",
+        "group relative inline-flex h-9 items-center gap-2 border-r border-[var(--border-color)] px-3 text-xs transition-colors cursor-pointer select-none",
+        active
+          ? "bg-[var(--tab-active-bg)] text-[var(--tab-active-fg)] font-medium border-t-2 border-t-[#007acc]"
+          : "bg-[var(--tab-inactive-bg)] text-[var(--tab-inactive-fg)] hover:bg-[var(--tab-active-bg)]/40 hover:text-[var(--foreground)]",
         className,
       )}
       {...props}
@@ -57,7 +67,7 @@ export function TabsTrigger({ className, value, children, ...props }: TabsTrigge
 export function TabsContent({ className, value, children, ...props }: HTMLAttributes<HTMLDivElement> & { value: string }) {
   const context = useContext(TabsContext);
   if (context?.value !== value) return null;
-  return <div className={cn("mt-2", className)} {...props}>{children}</div>;
+  return <div className={cn("mt-0", className)} {...props}>{children}</div>;
 }
 
 export type { ReactNode };

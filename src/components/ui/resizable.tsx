@@ -18,5 +18,15 @@ export function ResizablePanel({ className, defaultSize, minSize, style, ...prop
 }
 
 export function ResizableHandle({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div role="separator" aria-orientation="vertical" className={cn("w-px shrink-0 cursor-col-resize bg-slate-800/80 transition-colors hover:bg-cyan-400/50", className)} {...props} />;
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      className={cn(
+        "w-[2px] shrink-0 cursor-col-resize bg-[var(--border-color)] transition-colors hover:bg-[#007acc] active:bg-[#007acc]",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
