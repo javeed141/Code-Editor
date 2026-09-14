@@ -48,9 +48,20 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { mockRepository } from "@/src/data/mockRepository";
+import {
+  getRepositoryFile,
+  getRepositoryFiles,
+  getRepositorySnapshot,
+  getRepositorySnapshotId,
+  saveRepositoryFiles,
+  saveRepositorySnapshot,
+} from "@/src/lib/indexeddb";
+import { buildFileTree } from "@/src/lib/github";
 import { findFileByPath, getLanguageFromPath } from "@/src/lib/utils";
 import type { OpenFile, RepoFile } from "@/src/types/editor";
 import type { GitHubUser, Repository, SelectedRepository } from "@/src/types/github";
+
+const SELECTED_REPOSITORY_STORAGE_KEY = "ai-code-editor-selected-repository";
 
 function createOpenFile(
   path: string,
@@ -81,7 +92,7 @@ export default function Dashboard() {
   const [selectedRepository, setSelectedRepository] = useState<SelectedRepository | null>(null);
   const [repositoryTree, setRepositoryTree] = useState<RepoFile[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
-  const [fileLoading, setFileLoading] = useState(false);
+  const [fileLoading] = useState(false);
   const [repoModalOpen, setRepoModalOpen] = useState(false);
 
   // Editor tabs & file state
@@ -101,55 +112,163 @@ export default function Dashboard() {
       status: "modified" as const,
     }));
 
+  const loadCachedSnapshot = useCallback(async (repo: Repository) => {
+    const snapshotId = getRepositorySnapshotId(repo.ownerLogin, repo.name, repo.defaultBranch);
+    const [cachedSnapshot, cachedFiles] = await Promise.all([
+      getRepositorySnapshot(snapshotId),
+      getRepositoryFiles(snapshotId),
+    ]);
+
+    if (!cachedSnapshot || cachedFiles.length === 0) {
+      return false;
+    }
+
+    const snapshotTree = buildFileTree(
+      cachedFiles.map((file) => ({
+        path: file.path,
+        type: "blob",
+        sha: file.sha,
+        size: file.size,
+        content: file.content,
+        language: file.language,
+        isBinary: file.isBinary,
+      })),
+    );
+
+    setRepositoryTree(snapshotTree);
+    setSelectedRepository({
+      owner: repo.ownerLogin,
+      repo: repo.name,
+      defaultBranch: repo.defaultBranch,
+      branch: cachedSnapshot.branch,
+      headSha: cachedSnapshot.headSha,
+    });
+
+    const readme = cachedFiles.find((file) => file.name.toLowerCase() === "readme.md");
+    if (readme?.content !== undefined) {
+      setOpenFiles({
+        [readme.path]: createOpenFile(readme.path, readme.content ?? "", readme.name, {
+          sha: readme.sha,
+          isBinary: readme.isBinary,
+        }),
+      });
+      setSelectedPath(readme.path);
+    }
+
+    return true;
+  }, []);
+
   // Select a repository & fetch its Git tree recursively
-  const handleSelectRepository = useCallback(async (repo: Repository) => {
+  const handleSelectRepository = useCallback(async (repo: Repository, forceRefresh = false) => {
     setRepoModalOpen(false);
     setTreeLoading(true);
     setOpenFiles({});
     setSelectedPath(null);
+    setSelectedRepository(null);
 
     const initialRepo: SelectedRepository = {
       owner: repo.ownerLogin,
       repo: repo.name,
       defaultBranch: repo.defaultBranch,
+      branch: repo.defaultBranch,
       headSha: "",
     };
-    setSelectedRepository(initialRepo);
-
     try {
+      if (!forceRefresh) {
+        const hydrated = await loadCachedSnapshot(repo);
+        if (hydrated) {
+          setTreeLoading(false);
+          return;
+        }
+      }
+
       const res = await fetch(
-        `/api/github/tree?owner=${encodeURIComponent(repo.ownerLogin)}&repo=${encodeURIComponent(
+        `/api/github/branch-snapshot?owner=${encodeURIComponent(repo.ownerLogin)}&repo=${encodeURIComponent(
           repo.name,
         )}&branch=${encodeURIComponent(repo.defaultBranch)}`,
       );
 
       if (res.ok) {
         const data = await res.json();
-        setRepositoryTree(data.tree || []);
-        setSelectedRepository({
-          ...initialRepo,
-          headSha: data.headSha || "",
+        const snapshotTree: RepoFile[] = Array.isArray(data.tree) ? data.tree : [];
+        const files = Array.isArray(data.files) ? data.files : [];
+        const snapshotId = getRepositorySnapshotId(repo.ownerLogin, repo.name, repo.defaultBranch);
+
+        await saveRepositorySnapshot({
+          id: snapshotId,
+          owner: repo.ownerLogin,
+          repo: repo.name,
+          branch: repo.defaultBranch,
+          headSha: data.repository?.headSha || "",
+          fetchedAt: Date.now(),
         });
 
-        // Auto-open README.md if present, or first file
-        const readme = (data.tree || []).find(
-          (f: RepoFile) => f.type === "file" && f.name.toLowerCase() === "readme.md",
+        await saveRepositoryFiles(
+          snapshotId,
+          files.map((file: { path: string; name: string; content: string; sha?: string; size?: number; language?: string; isBinary?: boolean }) => ({
+            id: `${snapshotId}:${file.path}`,
+            snapshotId,
+            path: file.path,
+            name: file.name,
+            type: "file",
+            content: file.content,
+            sha: file.sha,
+            size: file.size,
+            language: file.language,
+            isBinary: file.isBinary,
+            updatedAt: Date.now(),
+          })),
         );
-        if (readme) {
-          handleFileFetch(readme.path, repo.ownerLogin, repo.name, repo.defaultBranch);
+
+        setRepositoryTree(snapshotTree);
+        setSelectedRepository({
+          ...initialRepo,
+          branch: repo.defaultBranch,
+          headSha: data.repository?.headSha || data.headSha || "",
+        });
+
+        const flattenedFiles: RepoFile[] = [];
+        const visit = (nodes: RepoFile[]) => {
+          nodes.forEach((node) => {
+            if (node.type === "file") {
+              flattenedFiles.push(node);
+            }
+            if (node.children) {
+              visit(node.children);
+            }
+          });
+        };
+        visit(snapshotTree);
+
+        const readme = flattenedFiles.find(
+          (file) => file.type === "file" && file.name.toLowerCase() === "readme.md",
+        );
+
+        if (readme?.content !== undefined) {
+          const nextFile = createOpenFile(
+            readme.path,
+            readme.content ?? "",
+            readme.name,
+            {
+              sha: readme.sha,
+              isBinary: readme.isBinary,
+            },
+          );
+          setOpenFiles({ [readme.path]: nextFile });
+          setSelectedPath(readme.path);
         }
       } else {
         const errData = await res.json();
-        console.error("Tree fetch failed:", errData.error);
+        console.error("Branch snapshot fetch failed:", errData.error);
         setRepositoryTree([]);
       }
     } catch (err) {
-      console.error("Error fetching repository tree:", err);
+      console.error("Error fetching repository snapshot:", err);
       setRepositoryTree([]);
     } finally {
       setTreeLoading(false);
     }
-  }, []);
+  }, [loadCachedSnapshot]);
 
   // Fetch repositories and auto-select if only 1 is granted by the user on GitHub
   const fetchRepositories = useCallback(async () => {
@@ -163,6 +282,26 @@ export default function Dashboard() {
           setInstallationId(data.installationId);
         }
 
+        const savedRepo = localStorage.getItem(SELECTED_REPOSITORY_STORAGE_KEY);
+        if (savedRepo) {
+          try {
+            const parsed = JSON.parse(savedRepo) as SelectedRepository;
+            const match = repos.find(
+              (repo) =>
+                repo.ownerLogin === parsed.owner &&
+                repo.name === parsed.repo &&
+                repo.defaultBranch === parsed.defaultBranch,
+            );
+            if (match) {
+              handleSelectRepository(match);
+              return;
+            }
+          } catch (error) {
+            console.warn("Stored repo selection is invalid, clearing it.", error);
+            localStorage.removeItem(SELECTED_REPOSITORY_STORAGE_KEY);
+          }
+        }
+
         // Auto-select immediately if only 1 repository is permitted on GitHub!
         if (repos.length === 1) {
           handleSelectRepository(repos[0]);
@@ -172,6 +311,20 @@ export default function Dashboard() {
       console.error("Failed to load repositories:", err);
     }
   }, [handleSelectRepository]);
+
+  useEffect(() => {
+    if (!selectedRepository) return;
+
+    const persistedRepository = {
+      owner: selectedRepository.owner,
+      repo: selectedRepository.repo,
+      defaultBranch: selectedRepository.defaultBranch,
+      branch: selectedRepository.branch ?? selectedRepository.defaultBranch,
+      headSha: selectedRepository.headSha,
+    };
+
+    localStorage.setItem(SELECTED_REPOSITORY_STORAGE_KEY, JSON.stringify(persistedRepository));
+  }, [selectedRepository]);
 
   // Check current session on mount
   useEffect(() => {
@@ -206,72 +359,58 @@ export default function Dashboard() {
     checkAuth();
   }, [fetchRepositories]);
 
-  // Fetch file content from GitHub
-  async function handleFileFetch(
-    filePath: string,
-    owner: string,
-    repo: string,
-    ref: string,
-  ) {
-    setFileLoading(true);
-    const fileName = filePath.split("/").pop() ?? filePath;
-
-    try {
-      const res = await fetch(
-        `/api/github/file?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(
-          repo,
-        )}&path=${encodeURIComponent(filePath)}&ref=${encodeURIComponent(ref)}`,
-      );
-
-      if (res.ok) {
-        const data = await res.json();
-        const openFile = createOpenFile(filePath, data.content || "", fileName, {
-          isBinary: data.isBinary,
-          isTooLarge: data.isTooLarge,
-          message: data.message,
-          sha: data.sha,
-        });
-
-        setOpenFiles((current) => ({
-          ...current,
-          [filePath]: openFile,
-        }));
-        setSelectedPath(filePath);
-      } else {
-        const err = await res.json();
-        console.error("Failed to load file:", err);
-      }
-    } catch (err) {
-      console.error("File fetch error:", err);
-    } finally {
-      setFileLoading(false);
-    }
-  }
-
   // Handle tree node file click
-  function handleFileSelect(path: string) {
+  async function handleFileSelect(path: string) {
     if (openFiles[path]) {
       setSelectedPath(path);
       return;
     }
 
     if (selectedRepository) {
-      handleFileFetch(
-        path,
-        selectedRepository.owner,
-        selectedRepository.repo,
-        selectedRepository.defaultBranch,
-      );
-    } else {
-      // Fallback mock repository
-      const file = findFileByPath(repositoryTree, path);
-      if (!file || file.content === undefined) return;
-      setOpenFiles((current) => ({
-        ...current,
-        [path]: createOpenFile(path, file.content ?? "", file.name),
-      }));
-      setSelectedPath(path);
+      const snapshotFile = findFileByPath(repositoryTree, path);
+      if (snapshotFile?.content !== undefined) {
+        setOpenFiles((current) => ({
+          ...current,
+          [path]: createOpenFile(path, snapshotFile.content ?? "", snapshotFile.name, {
+            sha: snapshotFile.sha,
+            isBinary: snapshotFile.isBinary,
+          }),
+        }));
+        setSelectedPath(path);
+        return;
+      }
+
+      try {
+        const snapshotId = getRepositorySnapshotId(
+          selectedRepository.owner,
+          selectedRepository.repo,
+          selectedRepository.defaultBranch,
+        );
+        const cachedFile = await getRepositoryFile(snapshotId, path);
+        if (cachedFile?.content !== undefined) {
+          setOpenFiles((current) => ({
+            ...current,
+            [path]: createOpenFile(path, cachedFile.content ?? "", cachedFile.name, {
+              sha: cachedFile.sha,
+              isBinary: cachedFile.isBinary,
+            }),
+          }));
+          setSelectedPath(path);
+        }
+      } catch (error) {
+        console.error("Unable to load cached file from snapshot:", error);
+      }
+      return;
     }
+
+    // Fallback mock repository
+    const file = findFileByPath(repositoryTree, path);
+    if (!file || file.content === undefined) return;
+    setOpenFiles((current) => ({
+      ...current,
+      [path]: createOpenFile(path, file.content ?? "", file.name),
+    }));
+    setSelectedPath(path);
   }
 
   // Refresh current repository tree
@@ -281,7 +420,7 @@ export default function Dashboard() {
         (r) => r.ownerLogin === selectedRepository.owner && r.name === selectedRepository.repo,
       );
       if (repoMatch) {
-        handleSelectRepository(repoMatch);
+        handleSelectRepository(repoMatch, true);
       }
     }
   }

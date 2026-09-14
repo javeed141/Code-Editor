@@ -115,13 +115,12 @@ function DiffViewer({
       disposed = true;
       if (diffEditor) diffEditor.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [original, modified, language]);
 
   return (
     <div
       ref={containerRef}
-      className="h-64 w-full rounded border border-[var(--border-color)] overflow-hidden"
+      className="h-[32vh] min-h-[220px] w-full overflow-hidden rounded border border-[var(--border-color)] bg-[var(--editor-bg)]"
     />
   );
 }
@@ -159,17 +158,7 @@ export default function CommitDialog({
   const [selectedDiffFile, setSelectedDiffFile] = useState<ChangedFile | null>(null);
   const [commitState, setCommitState] = useState<CommitState>({ type: "idle" });
 
-  // Reset state when dialog opens
-  useEffect(() => {
-    if (open) {
-      setCommitMessage("");
-      setSelectedDiffFile(null);
-      setCommitState({ type: "idle" });
-      if (changedFiles.length > 0) {
-        setSelectedDiffFile(changedFiles[0]);
-      }
-    }
-  }, [open, changedFiles]);
+  const effectiveSelectedFile = selectedDiffFile ?? changedFiles[0] ?? null;
 
   const isCommitting = commitState.type === "committing";
   const isSuccess = commitState.type === "success";
@@ -267,12 +256,19 @@ export default function CommitDialog({
 
   function handleClose() {
     if (isCommitting) return;
+    setCommitMessage("");
+    setSelectedDiffFile(null);
+    setCommitState({ type: "idle" });
     onOpenChange(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl border-[var(--border-color)] bg-[var(--sidebar-bg)] text-[var(--foreground)]">
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      if (!nextOpen) {
+        handleClose();
+      }
+    }}>
+      <DialogContent className="max-w-4xl border-[var(--border-color)] bg-[var(--sidebar-bg)] text-[var(--foreground)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <GitCommitHorizontal className="size-4 text-[#007acc]" />
@@ -341,20 +337,20 @@ export default function CommitDialog({
 
         {/* ── Normal Commit UI ───────────────────────────────────────────────── */}
         {!isSuccess && !isStale && (
-          <div className="flex flex-col gap-3">
+          <div className="flex max-h-[72vh] min-h-0 flex-col gap-3 overflow-hidden">
             {/* Changed files list */}
-            <div>
+            <div className="min-h-0">
               <p className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">
                 {changedFiles.length} changed file{changedFiles.length !== 1 ? "s" : ""}
               </p>
-              <ScrollArea className="max-h-36 rounded border border-[var(--border-color)]">
+              <ScrollArea className="max-h-28 min-h-0 rounded border border-[var(--border-color)]">
                 <div className="divide-y divide-[var(--border-color)]">
                   {changedFiles.map((file) => (
                     <button
                       key={file.path}
                       type="button"
                       className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--list-hover)] ${
-                        selectedDiffFile?.path === file.path
+                        effectiveSelectedFile?.path === file.path
                           ? "bg-[var(--list-active-bg)] text-[var(--list-active-fg)]"
                           : "text-[var(--foreground)]"
                       }`}
@@ -369,19 +365,19 @@ export default function CommitDialog({
             </div>
 
             {/* Diff viewer */}
-            {selectedDiffFile && (
-              <div>
+            {effectiveSelectedFile && (
+              <div className="min-h-0 flex-1">
                 <p className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">
                   Diff —{" "}
                   <span className="font-mono text-[var(--foreground)]">
-                    {selectedDiffFile.path}
+                    {effectiveSelectedFile.path}
                   </span>
                 </p>
                 <DiffViewer
-                  key={selectedDiffFile.path}
-                  original={selectedDiffFile.originalContent}
-                  modified={selectedDiffFile.content}
-                  language={getLanguageFromPath(selectedDiffFile.path)}
+                  key={effectiveSelectedFile.path}
+                  original={effectiveSelectedFile.originalContent}
+                  modified={effectiveSelectedFile.content}
+                  language={getLanguageFromPath(effectiveSelectedFile.path)}
                 />
               </div>
             )}
@@ -397,7 +393,7 @@ export default function CommitDialog({
             )}
 
             {/* Commit message */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex min-h-0 flex-col gap-1.5">
               <label className="text-xs font-medium text-[var(--text-muted)]">
                 Commit message
               </label>

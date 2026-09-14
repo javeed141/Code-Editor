@@ -1,6 +1,7 @@
 import { Octokit } from "octokit";
-import type { GitHubFileContent, GitHubUser, Repository } from "@/src/types/github";
+import type { BranchSnapshotResponse, GitHubFileContent, GitHubUser, Repository } from "@/src/types/github";
 import type { RepoFile } from "@/src/types/editor";
+import { getLanguageFromPath } from "@/src/lib/utils";
 
 const BINARY_EXTENSIONS = new Set([
   "png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "tiff",
@@ -134,7 +135,15 @@ export async function getRepositoryTree(
 }
 
 export function buildFileTree(
-  entries: Array<{ path: string; type: string; sha?: string; size?: number }>,
+  entries: Array<{
+    path: string;
+    type: string;
+    sha?: string;
+    size?: number;
+    content?: string;
+    language?: string;
+    isBinary?: boolean;
+  }>,
 ): RepoFile[] {
   type InternalNode = {
     path: string;
@@ -143,6 +152,9 @@ export function buildFileTree(
     children?: Map<string, InternalNode>;
     sha?: string;
     size?: number;
+    content?: string;
+    language?: string;
+    isBinary?: boolean;
   };
 
   const rootNodes = new Map<string, InternalNode>();
@@ -168,6 +180,9 @@ export function buildFileTree(
             children: isFolder ? new Map() : undefined,
             sha: entry.sha,
             size: entry.size,
+            content: entry.content,
+            language: entry.language,
+            isBinary: entry.isBinary,
           });
         }
       } else {
@@ -199,10 +214,14 @@ export function buildFileTree(
         name: node.name,
         type: node.type,
         children: childrenArray,
+        content: node.content,
+        sha: node.sha,
+        size: node.size,
+        language: node.language,
+        isBinary: node.isBinary,
       });
     }
 
-    // Sort: Folders first, then alphabetically
     return list.sort((a, b) => {
       if (a.type === b.type) {
         return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -316,6 +335,74 @@ export async function getBranchHead(
   const octokit = getAuthenticatedOctokit(accessToken);
   const { data } = await octokit.rest.repos.getBranch({ owner, repo, branch });
   return { headSha: data.commit.sha };
+}
+
+export async function getBranchSnapshot(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<BranchSnapshotResponse> {
+  const { headSha } = await getBranchHead(accessToken, owner, repo, branch);
+  const octokit = getAuthenticatedOctokit(accessToken);
+  const { data: treeData } = await octokit.rest.git.getTree({
+    owner,
+    repo,
+    tree_sha: headSha,
+    recursive: "1",
+  });
+
+  const treeEntries = (treeData.tree || []).filter((item) => {
+    if (item.type !== "blob" || !item.path) return false;
+    const extension = item.path.split(".").pop()?.toLowerCase() ?? "";
+    return !BINARY_EXTENSIONS.has(extension) && (item.size ?? 0) <= MAX_FILE_SIZE_BYTES;
+  });
+
+  const files = (
+    await Promise.all(
+      treeEntries.map(async (item) => {
+        const path = item.path ?? "";
+        const fileResponse = await getFileContent(accessToken, owner, repo, path, headSha);
+
+        if (fileResponse.isBinary || fileResponse.isTooLarge || fileResponse.message) {
+          return null;
+        }
+
+        return {
+          path,
+          name: path.split("/").pop() ?? path,
+          content: fileResponse.content,
+          sha: fileResponse.sha || item.sha || "",
+          size: fileResponse.size || item.size || 0,
+          language: getLanguageFromPath(path),
+          isBinary: false,
+        };
+      }),
+    )
+  ).filter((file): file is NonNullable<typeof file> => file !== null);
+
+  const tree = buildFileTree(
+    files.map((file) => ({
+      path: file.path,
+      type: "blob",
+      sha: file.sha,
+      size: file.size,
+      content: file.content,
+      language: file.language,
+      isBinary: file.isBinary,
+    })),
+  );
+
+  return {
+    repository: {
+      owner,
+      repo,
+      branch,
+      headSha,
+    },
+    files,
+    tree,
+  };
 }
 
 /**

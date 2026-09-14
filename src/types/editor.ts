@@ -6,6 +6,9 @@ export type RepoFile = {
   children?: RepoFile[];
   sha?: string;
   size?: number;
+  language?: string;
+  isBinary?: boolean;
+  updatedAt?: number;
 };
 
 export type OpenFile = {
