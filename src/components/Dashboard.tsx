@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ExternalLink,
   FolderGit2,
@@ -62,6 +62,7 @@ import type { OpenFile, RepoFile } from "@/src/types/editor";
 import type { GitHubUser, Repository, SelectedRepository } from "@/src/types/github";
 
 const SELECTED_REPOSITORY_STORAGE_KEY = "ai-code-editor-selected-repository";
+const HOME_URL_STORAGE_KEY = "ai-code-editor-home-url";
 
 function createOpenFile(
   path: string,
@@ -100,6 +101,13 @@ export default function Dashboard() {
   const [openFiles, setOpenFiles] = useState<Record<string, OpenFile>>({});
   const [commandOpen, setCommandOpen] = useState(false);
   const [commitDialogOpen, setCommitDialogOpen] = useState(false);
+  const bootstrapStartedRef = useRef(false);
+  const selectionRequestRef = useRef(0);
+
+  useEffect(() => {
+    const homeUrl = new URL("/", window.location.origin).toString();
+    localStorage.setItem(HOME_URL_STORAGE_KEY, homeUrl);
+  }, []);
 
   // Derived: all open files that have been modified from their original content
   const changedFiles: ChangedFile[] = Object.values(openFiles)
@@ -160,11 +168,12 @@ export default function Dashboard() {
 
   // Select a repository & fetch its Git tree recursively
   const handleSelectRepository = useCallback(async (repo: Repository, forceRefresh = false) => {
+    const requestId = ++selectionRequestRef.current;
     setRepoModalOpen(false);
     setTreeLoading(true);
     setOpenFiles({});
     setSelectedPath(null);
-    setSelectedRepository(null);
+    setRepositoryTree([]);
 
     const initialRepo: SelectedRepository = {
       owner: repo.ownerLogin,
@@ -176,6 +185,7 @@ export default function Dashboard() {
     try {
       if (!forceRefresh) {
         const hydrated = await loadCachedSnapshot(repo);
+        if (requestId !== selectionRequestRef.current) return;
         if (hydrated) {
           setTreeLoading(false);
           return;
@@ -190,6 +200,7 @@ export default function Dashboard() {
 
       if (res.ok) {
         const data = await res.json();
+        if (requestId !== selectionRequestRef.current) return;
         const snapshotTree: RepoFile[] = Array.isArray(data.tree) ? data.tree : [];
         const files = Array.isArray(data.files) ? data.files : [];
         const snapshotId = getRepositorySnapshotId(repo.ownerLogin, repo.name, repo.defaultBranch);
@@ -263,10 +274,13 @@ export default function Dashboard() {
         setRepositoryTree([]);
       }
     } catch (err) {
+      if (requestId !== selectionRequestRef.current) return;
       console.error("Error fetching repository snapshot:", err);
       setRepositoryTree([]);
     } finally {
-      setTreeLoading(false);
+      if (requestId === selectionRequestRef.current) {
+        setTreeLoading(false);
+      }
     }
   }, [loadCachedSnapshot]);
 
@@ -328,6 +342,9 @@ export default function Dashboard() {
 
   // Check current session on mount
   useEffect(() => {
+    if (bootstrapStartedRef.current) return;
+    bootstrapStartedRef.current = true;
+
     async function checkAuth() {
       try {
         const res = await fetch("/api/auth/me");
@@ -524,6 +541,10 @@ export default function Dashboard() {
 
   // Sign out and clear ALL browser data
   async function handleLogout() {
+    const homeUrl =
+      localStorage.getItem(HOME_URL_STORAGE_KEY) ||
+      new URL("/", window.location.origin).toString();
+
     // 1. Tell the server to expire the session cookie
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -554,16 +575,18 @@ export default function Dashboard() {
     try {
       sessionStorage.clear();
       const currentTheme = localStorage.getItem("ai-code-editor-theme");
+      const storedHomeUrl = localStorage.getItem(HOME_URL_STORAGE_KEY) || homeUrl;
       localStorage.clear();
       if (currentTheme) {
         localStorage.setItem("ai-code-editor-theme", currentTheme);
       }
+      localStorage.setItem(HOME_URL_STORAGE_KEY, storedHomeUrl);
     } catch {
       // ignore storage errors
     }
 
     // 5. Hard redirect to home — full page reload so no stale JS state remains
-    window.location.replace("/");
+    window.location.replace(homeUrl);
   }
 
   // Keybindings (Cmd/Ctrl + K, Cmd/Ctrl + S)

@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { setOAuthState } from "@/src/lib/session";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const appSlug = process.env.GITHUB_APP_SLUG?.trim();
-  const callbackUrl = process.env.GITHUB_CALLBACK_URL || "http://localhost:3000/api/auth/github/callback";
+  const callbackUrl =
+    process.env.GITHUB_CALLBACK_URL ||
+    new URL("/api/auth/github/callback", request.nextUrl.origin).toString();
 
   if (!clientId) {
     return NextResponse.json(

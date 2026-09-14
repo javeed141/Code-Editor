@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const appSlug = process.env.GITHUB_APP_SLUG?.trim();
   const callbackUrl =
-    process.env.GITHUB_CALLBACK_URL || "http://localhost:3000/api/auth/github/callback";
+    process.env.GITHUB_CALLBACK_URL ||
+    new URL("/api/auth/github/callback", request.nextUrl.origin).toString();
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
