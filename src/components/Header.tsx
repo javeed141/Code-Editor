@@ -38,7 +38,9 @@ import type { GitHubUser, SelectedRepository } from "@/src/types/github";
 type HeaderProps = {
   repositoryName: string;
   hasModifiedFile: boolean;
+  changedCount: number;
   onSave: () => void;
+  onCommit: () => void;
   onCommandOpen: () => void;
   user: GitHubUser | null;
   authLoading: boolean;
@@ -66,7 +68,9 @@ function GitHubLogo({ className = "size-3.5" }: { className?: string }) {
 export default function Header({
   repositoryName,
   hasModifiedFile,
+  changedCount,
   onSave,
+  onCommit,
   onCommandOpen,
   user,
   authLoading,
@@ -174,15 +178,26 @@ export default function Header({
           </Button>
         </Tooltip>
 
-        <Tooltip label="GitHub commit/push (Coming soon)">
+        <Tooltip
+          label={
+            changedCount > 0
+              ? `Commit ${changedCount} changed file${changedCount !== 1 ? "s" : ""} to GitHub`
+              : "No changed files to commit"
+          }
+        >
           <Button
-            variant="outline"
-            disabled
-            aria-label="Commit changes (unavailable)"
-            className="h-7"
+            variant={changedCount > 0 ? "default" : "outline"}
+            onClick={onCommit}
+            disabled={changedCount === 0}
+            aria-label={changedCount > 0 ? `Commit ${changedCount} changes` : "No changes to commit"}
+            className={`h-7 gap-1.5 ${
+              changedCount > 0
+                ? "bg-[#238636] hover:bg-[#2ea043] text-white border-0"
+                : ""
+            }`}
           >
             <GitCommitHorizontal aria-hidden="true" className="size-3.5" />
-            Commit
+            {changedCount > 0 ? `Commit changes (${changedCount})` : "Commit changes"}
           </Button>
         </Tooltip>
 

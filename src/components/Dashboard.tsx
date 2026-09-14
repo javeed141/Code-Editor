@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import ChatPanel from "@/src/components/ChatPanel";
 import CodeEditor from "@/src/components/CodeEditor";
+import CommitDialog from "@/src/components/CommitDialog";
+import type { ChangedFile } from "@/src/components/CommitDialog";
 import EditorStatusBar from "@/src/components/EditorStatusBar";
 import FileExplorer from "@/src/components/FileExplorer";
 import FileIcon from "@/src/components/FileIcon";
@@ -86,6 +88,18 @@ export default function Dashboard() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<Record<string, OpenFile>>({});
   const [commandOpen, setCommandOpen] = useState(false);
+  const [commitDialogOpen, setCommitDialogOpen] = useState(false);
+
+  // Derived: all open files that have been modified from their original content
+  const changedFiles: ChangedFile[] = Object.values(openFiles)
+    .filter((f) => f.isModified && !f.isBinary && !f.isTooLarge)
+    .map((f) => ({
+      path: f.path,
+      name: f.name,
+      originalContent: f.originalContent,
+      content: f.content,
+      status: "modified" as const,
+    }));
 
   // Select a repository & fetch its Git tree recursively
   const handleSelectRepository = useCallback(async (repo: Repository) => {
@@ -312,8 +326,10 @@ export default function Dashboard() {
         ...current,
         [selectedPath]: {
           ...file,
-          originalContent: file.content,
-          isModified: false,
+          // Keep the GitHub version as the baseline. "Save" only preserves
+          // the current editor value; committing is what clears Git changes.
+          content: file.content,
+          isModified: file.content !== file.originalContent,
         },
       };
     });
@@ -333,6 +349,38 @@ export default function Dashboard() {
         },
       };
     });
+  }
+
+  /**
+   * Called by CommitDialog after a successful GitHub commit.
+   * Marks every committed file as clean, updates originalContent and headSha.
+   */
+  function handleCommitSuccess(
+    _commitSha: string,
+    newHeadSha: string,
+    committedFiles: ChangedFile[],
+  ) {
+    const committedPaths = new Set(committedFiles.map((f) => f.path));
+
+    setOpenFiles((current) => {
+      const updated = { ...current };
+      for (const path of committedPaths) {
+        const file = updated[path];
+        if (file) {
+          updated[path] = {
+            ...file,
+            originalContent: file.content, // new baseline = what was committed
+            isModified: false,
+          };
+        }
+      }
+      return updated;
+    });
+
+    // Update the repository's headSha to the new commit so future commits chain correctly
+    setSelectedRepository((prev) =>
+      prev ? { ...prev, headSha: newHeadSha } : prev,
+    );
   }
 
   // Sign out and clear ALL browser data
@@ -402,7 +450,9 @@ export default function Dashboard() {
       <Header
         repositoryName={selectedRepository ? selectedRepository.repo : "demo-project"}
         hasModifiedFile={Boolean(selectedFile?.isModified)}
+        changedCount={changedFiles.length}
         onSave={handleSave}
+        onCommit={() => setCommitDialogOpen(true)}
         onCommandOpen={() => setCommandOpen(true)}
         user={authenticatedUser}
         authLoading={authLoading}
@@ -569,6 +619,17 @@ export default function Dashboard() {
         onSave={handleSave}
         onDiscard={handleDiscard}
       />
+
+      {selectedRepository && (
+        <CommitDialog
+          open={commitDialogOpen}
+          onOpenChange={setCommitDialogOpen}
+          changedFiles={changedFiles}
+          selectedRepository={selectedRepository}
+          onCommitSuccess={handleCommitSuccess}
+          onRefreshRepository={handleRefreshTree}
+        />
+      )}
 
       {/* Quick Command Menu (Cmd/Ctrl + K) */}
       <Dialog open={commandOpen} onOpenChange={setCommandOpen}>

@@ -292,3 +292,116 @@ export async function getFileContent(
   }
 }
 
+export type CommitFile = {
+  path: string;
+  content: string | null; // null = deleted
+  status: "modified" | "added" | "deleted";
+};
+
+export type CommitResult = {
+  sha: string;
+  message: string;
+};
+
+/**
+ * Fetch the current HEAD SHA of a branch (used for stale detection).
+ * Never returns the access token.
+ */
+export async function getBranchHead(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<{ headSha: string }> {
+  const octokit = getAuthenticatedOctokit(accessToken);
+  const { data } = await octokit.rest.repos.getBranch({ owner, repo, branch });
+  return { headSha: data.commit.sha };
+}
+
+/**
+ * Create a single Git commit containing all changed files using GitHub's Git database API.
+ * Uses blobs → tree → commit → update ref.
+ * The branch ref update uses the expectedHeadSha to guard against race conditions.
+ * If another push happened between HEAD check and our update, GitHub will reject it (409).
+ */
+export async function createCommit(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  branch: string,
+  expectedHeadSha: string,
+  message: string,
+  files: CommitFile[],
+): Promise<CommitResult> {
+  const octokit = getAuthenticatedOctokit(accessToken);
+
+  // 1. Create blobs for added/modified files
+  const treeEntries: Array<{
+    path: string;
+    mode: "100644";
+    type: "blob";
+    sha: string | null;
+  }> = [];
+
+  for (const file of files) {
+    if (file.status === "deleted") {
+      // Deleted files: add entry with sha = null to remove from tree
+      treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: null });
+    } else {
+      // Modified / added: create a blob with the new content
+      const { data: blob } = await octokit.rest.git.createBlob({
+        owner,
+        repo,
+        content: Buffer.from(file.content ?? "", "utf-8").toString("base64"),
+        encoding: "base64",
+      });
+      treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
+    }
+  }
+
+  // 2. Resolve the current commit's tree before applying the file changes.
+  const { data: currentCommit } = await octokit.rest.git.getCommit({
+    owner,
+    repo,
+    commit_sha: expectedHeadSha,
+  });
+
+  // 3. Create a new tree based on the validated current HEAD tree
+  const { data: newTree } = await octokit.rest.git.createTree({
+    owner,
+    repo,
+    base_tree: currentCommit.tree.sha,
+    tree: treeEntries,
+  });
+
+  // 4. Create a commit with the new tree, parented to the current HEAD
+  const { data: newCommit } = await octokit.rest.git.createCommit({
+    owner,
+    repo,
+    message,
+    tree: newTree.sha,
+    parents: [expectedHeadSha],
+  });
+
+  // 5. Update the branch reference to point to the new commit.
+  //    force: false ensures we don't overwrite if someone else pushed.
+  //    GitHub returns 422 if the ref is not an ancestor — we surface this as a conflict.
+  try {
+    await octokit.rest.git.updateRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+      sha: newCommit.sha,
+      force: false,
+    });
+  } catch (err: unknown) {
+    const e = err as { status?: number };
+    if (e.status === 422) {
+      // Branch moved after our HEAD check — race condition
+      throw Object.assign(new Error("Branch reference is stale. Someone pushed after your HEAD check."), { status: 409 });
+    }
+    throw err;
+  }
+
+  return { sha: newCommit.sha, message };
+}
