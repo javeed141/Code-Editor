@@ -1,18 +1,35 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, GitCommitHorizontal, RefreshCcw } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileDiff,
+  GitCommitHorizontal,
+  RefreshCcw,
+  RotateCcw,
+} from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Separator } from "@/src/components/ui/separator";
 import { Textarea } from "@/src/components/ui/textarea";
+import { Tooltip } from "@/src/components/ui/tooltip";
 import type { SelectedRepository } from "@/src/types/github";
 
 export type ChangedFile = {
@@ -32,6 +49,10 @@ type CommitDialogProps = {
   onCommitSuccess: (commitSha: string, newHeadSha: string, committedFiles: ChangedFile[]) => void;
   /** Called when user clicks Refresh Repository after a stale error */
   onRefreshRepository: () => void;
+  /** Restores one local file to the version loaded from GitHub. */
+  onRevertFile: (path: string) => void;
+  /** Restores every local file to the version loaded from GitHub. */
+  onRevertAll: () => void;
 };
 
 type CommitState =
@@ -63,6 +84,24 @@ function StatusBadge({ status }: { status: ChangedFile["status"] }) {
       className={`h-4 min-w-[18px] justify-center px-1 py-0 text-[10px] font-bold ${className}`}
     >
       {label}
+    </Badge>
+  );
+}
+
+function getStatusLabel(status: ChangedFile["status"]) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function DiffStatusBadge({ status }: { status: ChangedFile["status"] }) {
+  const className: Record<ChangedFile["status"], string> = {
+    modified: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    added: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    deleted: "border-red-500/30 bg-red-500/10 text-red-300",
+  };
+
+  return (
+    <Badge variant="outline" className={`h-5 px-1.5 text-[10px] font-medium ${className[status]}`}>
+      {getStatusLabel(status)}
     </Badge>
   );
 }
@@ -120,7 +159,7 @@ function DiffViewer({
   return (
     <div
       ref={containerRef}
-      className="h-[32vh] min-h-[220px] w-full overflow-hidden rounded border border-[var(--border-color)] bg-[var(--editor-bg)]"
+      className="h-full min-h-0 w-full overflow-hidden rounded-[3px] border border-[var(--border-color)] bg-[var(--editor-bg)]"
     />
   );
 }
@@ -153,10 +192,13 @@ export default function CommitDialog({
   selectedRepository,
   onCommitSuccess,
   onRefreshRepository,
+  onRevertFile,
+  onRevertAll,
 }: CommitDialogProps) {
   const [commitMessage, setCommitMessage] = useState("");
   const [selectedDiffFile, setSelectedDiffFile] = useState<ChangedFile | null>(null);
   const [commitState, setCommitState] = useState<CommitState>({ type: "idle" });
+  const [confirmingRevertAll, setConfirmingRevertAll] = useState(false);
 
   const effectiveSelectedFile = selectedDiffFile ?? changedFiles[0] ?? null;
 
@@ -259,26 +301,61 @@ export default function CommitDialog({
     setCommitMessage("");
     setSelectedDiffFile(null);
     setCommitState({ type: "idle" });
+    setConfirmingRevertAll(false);
     onOpenChange(false);
   }
 
+  function handleRevertFile(path: string) {
+    if (isCommitting) return;
+    if (effectiveSelectedFile?.path === path) {
+      setSelectedDiffFile(changedFiles.find((file) => file.path !== path) ?? null);
+    }
+    onRevertFile(path);
+  }
+
+  function handleRevertAll() {
+    if (isCommitting) return;
+    onRevertAll();
+    setSelectedDiffFile(null);
+    setConfirmingRevertAll(false);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => {
-      if (!nextOpen) {
-        handleClose();
-      }
-    }}>
-      <DialogContent className="max-w-4xl border-[var(--border-color)] bg-[var(--sidebar-bg)] text-[var(--foreground)]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <GitCommitHorizontal className="size-4 text-[#007acc]" />
-            Commit Changes
-          </DialogTitle>
+    <Dialog
+      open={open}
+      className="h-[86vh] max-h-[88vh] w-[94vw] max-w-[94vw]"
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) handleClose();
+      }}
+    >
+      <DialogContent className="flex h-full max-h-none max-w-none flex-col overflow-hidden rounded-md border-[var(--border-color)] bg-[var(--sidebar-bg)] p-0 text-[var(--foreground)] shadow-lg">
+        <DialogHeader className="mb-0 flex shrink-0 flex-row items-start justify-between gap-4 border-b border-[var(--border-color)] px-3 py-2">
+          <div className="min-w-0">
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <GitCommitHorizontal className="size-4 text-[#58a6ff]" />
+              Commit Changes
+            </DialogTitle>
+            <DialogDescription className="mt-0.5 text-[10px] leading-3">
+              Review local changes before committing
+            </DialogDescription>
+          </div>
+          {!isSuccess && !isStale && changedFiles.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 gap-1 border-red-500/40 px-2 text-[10px] text-red-300 hover:bg-red-500/10 hover:text-red-200"
+              onClick={() => setConfirmingRevertAll(true)}
+              disabled={isCommitting}
+            >
+              <RotateCcw className="size-3" />
+              Revert all changes
+            </Button>
+          )}
         </DialogHeader>
 
         {/* ── Success State ─────────────────────────────────────────────────── */}
         {isSuccess && commitState.type === "success" && (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-5 py-8 text-center">
             <CheckCircle2 className="size-10 text-emerald-400" />
             <p className="text-sm font-semibold text-[var(--foreground)]">
               Changes committed to GitHub
@@ -290,7 +367,7 @@ export default function CommitDialog({
             <Button
               size="sm"
               className="mt-2 h-7"
-              onClick={() => onOpenChange(false)}
+              onClick={handleClose}
             >
               Close
             </Button>
@@ -299,7 +376,7 @@ export default function CommitDialog({
 
         {/* ── Stale / Repository Changed State ──────────────────────────────── */}
         {isStale && commitState.type === "stale" && (
-          <div className="flex flex-col gap-4 py-4">
+          <div className="flex flex-1 flex-col gap-4 px-5 py-5">
             <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
               <div className="flex flex-col gap-1.5">
@@ -337,117 +414,162 @@ export default function CommitDialog({
 
         {/* ── Normal Commit UI ───────────────────────────────────────────────── */}
         {!isSuccess && !isStale && (
-          <div className="flex max-h-[72vh] min-h-0 flex-col gap-3 overflow-hidden">
-            {/* Changed files list */}
-            <div className="min-h-0">
-              <p className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">
-                {changedFiles.length} changed file{changedFiles.length !== 1 ? "s" : ""}
-              </p>
-              <ScrollArea className="max-h-28 min-h-0 rounded border border-[var(--border-color)]">
-                <div className="divide-y divide-[var(--border-color)]">
-                  {changedFiles.map((file) => (
-                    <button
-                      key={file.path}
-                      type="button"
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--list-hover)] ${
-                        effectiveSelectedFile?.path === file.path
-                          ? "bg-[var(--list-active-bg)] text-[var(--list-active-fg)]"
-                          : "text-[var(--foreground)]"
-                      }`}
-                      onClick={() => setSelectedDiffFile(file)}
-                    >
-                      <StatusBadge status={file.status} />
-                      <span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
-                    </button>
-                  ))}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {changedFiles.length > 0 ? (
+              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[248px_minmax(0,1fr)]">
+                <aside className="flex min-h-0 flex-col border-b border-[var(--border-color)] bg-[var(--card-bg)] md:border-r md:border-b-0">
+                  <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-color)] px-2.5 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <FileDiff className="size-3.5 text-[var(--text-muted)]" />
+                      <span className="text-[10px] font-semibold tracking-[0.08em] text-[var(--text-muted)]">CHANGES</span>
+                    </div>
+                    <Badge variant="outline" className="h-5 border-[var(--border-color)] px-1.5 text-[10px] font-medium text-[var(--text-muted)]">
+                      {changedFiles.length} file{changedFiles.length !== 1 ? "s" : ""}
+                    </Badge>
+                  </div>
+                  <ScrollArea className="min-h-0 flex-1">
+                    <div className="space-y-0.5 p-1.5">
+                      {changedFiles.map((file) => (
+                        <div
+                          key={file.path}
+                          className={`flex items-center gap-1 rounded-[3px] border-l-2 transition-colors hover:bg-[var(--list-hover)] ${
+                            effectiveSelectedFile?.path === file.path
+                              ? "border-[#58a6ff] bg-[#1f6feb]/15 text-[var(--foreground)]"
+                              : "border-transparent text-[var(--text-muted)]"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+                            onClick={() => setSelectedDiffFile(file)}
+                          >
+                            <StatusBadge status={file.status} />
+                            <span className="min-w-0 flex-1 break-all font-mono text-[11px] leading-4">{file.path}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </aside>
+
+                <section className="flex min-h-0 min-w-0 flex-col bg-[var(--editor-bg)]">
+                  {effectiveSelectedFile && (
+                    <>
+                      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-color)] bg-[var(--card-bg)] px-3 py-1.5">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-mono text-xs font-medium">{effectiveSelectedFile.path}</p>
+                            <DiffStatusBadge status={effectiveSelectedFile.status} />
+                          </div>
+                          <p className="mt-0.5 text-[9px] leading-3 text-[var(--text-muted)]">Local changes not yet committed to GitHub</p>
+                        </div>
+                        <Tooltip label="Discard local edits for this file">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 shrink-0 gap-1.5 text-red-300 hover:bg-red-500/10 hover:text-red-200"
+                            onClick={() => handleRevertFile(effectiveSelectedFile.path)}
+                            disabled={isCommitting}
+                          >
+                            <RotateCcw className="size-3.5" />
+                            Revert file
+                          </Button>
+                        </Tooltip>
+                      </div>
+                      <div className="min-h-0 flex-1 p-2">
+                        <DiffViewer
+                          key={effectiveSelectedFile.path}
+                          original={effectiveSelectedFile.originalContent}
+                          modified={effectiveSelectedFile.content}
+                          language={getLanguageFromPath(effectiveSelectedFile.path)}
+                        />
+                      </div>
+                    </>
+                  )}
+                </section>
+              </div>
+            ) : (
+              <div className="flex min-h-[300px] flex-col items-center justify-center gap-2 px-5 text-center">
+                <CheckCircle2 className="size-8 text-emerald-400" />
+                <p className="text-sm font-medium">No local changes to commit</p>
+                <p className="text-xs text-[var(--text-muted)]">All changes have been reverted to the GitHub version.</p>
+              </div>
+            )}
+
+            <Separator />
+            <div className="shrink-0 bg-[var(--sidebar-bg)] px-4 py-2.5">
+              {commitState.type === "error" && (
+                <div className="mb-3 flex items-center gap-2 rounded border border-red-500/30 bg-red-500/10 px-3 py-2">
+                  <AlertTriangle className="size-3.5 shrink-0 text-red-400" />
+                  <p className="text-xs text-red-300">{commitState.message}</p>
                 </div>
-              </ScrollArea>
-            </div>
+              )}
 
-            {/* Diff viewer */}
-            {effectiveSelectedFile && (
-              <div className="min-h-0 flex-1">
-                <p className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">
-                  Diff —{" "}
-                  <span className="font-mono text-[var(--foreground)]">
-                    {effectiveSelectedFile.path}
-                  </span>
-                </p>
-                <DiffViewer
-                  key={effectiveSelectedFile.path}
-                  original={effectiveSelectedFile.originalContent}
-                  modified={effectiveSelectedFile.content}
-                  language={getLanguageFromPath(effectiveSelectedFile.path)}
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,720px)_minmax(0,1fr)] sm:items-end">
+                <div className="min-w-0">
+                  <label className="mb-1 block text-[11px] font-medium text-[var(--foreground)]">Commit message</label>
+                  <Textarea
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder="Add a brief description of your changes..."
+                    className="min-h-[72px] resize-none border-[var(--border-color)] bg-[var(--card-bg)] px-3 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--text-muted)] focus-visible:ring-[#58a6ff]"
+                    disabled={isCommitting || changedFiles.length === 0}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                        e.preventDefault();
+                        handleCommit();
+                      }
+                    }}
+                  />
+                  <p className="mt-1 text-[10px] text-[var(--text-muted)]">⌘ Enter to commit</p>
+                </div>
+                <div className="flex shrink-0 justify-end gap-2 self-end pb-4">
+                  <Button variant="outline" size="sm" className="h-8 px-3" onClick={handleClose} disabled={isCommitting}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-8 gap-1.5 bg-[#238636] px-3 text-white hover:bg-[#2ea043]"
+                    onClick={handleCommit}
+                    disabled={!canCommit}
+                  >
+                    {isCommitting ? (
+                      <>
+                        <span className="size-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        Committing...
+                      </>
+                    ) : (
+                      <>
+                        <GitCommitHorizontal className="size-3.5" />
+                        Commit {changedFiles.length} file{changedFiles.length !== 1 ? "s" : ""}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
-            )}
-
-            <Separator className="bg-[var(--border-color)]" />
-
-            {/* Error message */}
-            {commitState.type === "error" && (
-              <div className="flex items-center gap-2 rounded border border-red-500/30 bg-red-500/10 px-3 py-2">
-                <AlertTriangle className="size-3.5 shrink-0 text-red-400" />
-                <p className="text-xs text-red-300">{commitState.message}</p>
-              </div>
-            )}
-
-            {/* Commit message */}
-            <div className="flex min-h-0 flex-col gap-1.5">
-              <label className="text-xs font-medium text-[var(--text-muted)]">
-                Commit message
-              </label>
-              <Textarea
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-                placeholder="Add a brief description of your changes..."
-                className="min-h-[72px] resize-none border-[var(--border-color)] bg-[var(--card-bg)] text-xs text-[var(--foreground)] placeholder:text-[var(--text-muted)] focus-visible:ring-[#007acc]"
-                disabled={isCommitting}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    handleCommit();
-                  }
-                }}
-              />
-              <p className="text-[10px] text-[var(--text-muted)]">
-                ⌘ Enter to commit
-              </p>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7"
-                onClick={handleClose}
-                disabled={isCommitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="h-7 gap-1.5 bg-[#238636] hover:bg-[#2ea043] text-white"
-                onClick={handleCommit}
-                disabled={!canCommit}
-              >
-                {isCommitting ? (
-                  <>
-                    <span className="size-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Committing...
-                  </>
-                ) : (
-                  <>
-                    <GitCommitHorizontal className="size-3.5" />
-                    Commit to GitHub
-                  </>
-                )}
-              </Button>
             </div>
           </div>
         )}
       </DialogContent>
+
+      <AlertDialog open={confirmingRevertAll} onOpenChange={setConfirmingRevertAll}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert all local changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This restores all {changedFiles.length} changed file{changedFiles.length !== 1 ? "s" : ""} to the version loaded from GitHub. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setConfirmingRevertAll(false)}>
+              Keep changes
+            </Button>
+            <Button size="sm" className="bg-red-600 text-white hover:bg-red-500" onClick={handleRevertAll}>
+              Revert all changes
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

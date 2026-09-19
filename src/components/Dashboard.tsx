@@ -109,6 +109,13 @@ export default function Dashboard() {
     localStorage.setItem(HOME_URL_STORAGE_KEY, homeUrl);
   }, []);
 
+  const handleGitHubSignIn = useCallback(() => {
+    // Save the real browser domain before GitHub takes the user away. This is
+    // intentionally client-side: the server cannot read browser localStorage.
+    localStorage.setItem(HOME_URL_STORAGE_KEY, new URL("/", window.location.origin).toString());
+    window.location.assign(new URL("/api/auth/github", window.location.origin));
+  }, []);
+
   // Derived: all open files that have been modified from their original content
   const changedFiles: ChangedFile[] = Object.values(openFiles)
     .filter((f) => f.isModified && !f.isBinary && !f.isTooLarge)
@@ -507,6 +514,33 @@ export default function Dashboard() {
     });
   }
 
+  function handleRevertFile(path: string) {
+    setOpenFiles((current) => {
+      const file = current[path];
+      if (!file) return current;
+
+      return {
+        ...current,
+        [path]: {
+          ...file,
+          content: file.originalContent,
+          isModified: false,
+        },
+      };
+    });
+  }
+
+  function handleRevertAll() {
+    setOpenFiles((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([path, file]) => [
+          path,
+          { ...file, content: file.originalContent, isModified: false },
+        ]),
+      ),
+    );
+  }
+
   /**
    * Called by CommitDialog after a successful GitHub commit.
    * Marks every committed file as clean, updates originalContent and headSha.
@@ -623,6 +657,7 @@ export default function Dashboard() {
         installationId={installationId}
         onOpenRepoModal={() => setRepoModalOpen(true)}
         onLogout={handleLogout}
+        onSignIn={handleGitHubSignIn}
       />
 
       <ResizablePanelGroup className="flex-1 flex-row">
@@ -637,6 +672,7 @@ export default function Dashboard() {
             repoLoading={treeLoading}
             onRefresh={handleRefreshTree}
             onOpenRepoModal={() => setRepoModalOpen(true)}
+            onSignIn={handleGitHubSignIn}
           />
         </ResizablePanel>
 
@@ -790,6 +826,8 @@ export default function Dashboard() {
           selectedRepository={selectedRepository}
           onCommitSuccess={handleCommitSuccess}
           onRefreshRepository={handleRefreshTree}
+          onRevertFile={handleRevertFile}
+          onRevertAll={handleRevertAll}
         />
       )}
 

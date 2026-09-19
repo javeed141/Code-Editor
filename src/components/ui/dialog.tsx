@@ -5,9 +5,14 @@ import { X } from "lucide-react";
 import { cn } from "@/src/lib/cn";
 import { Button } from "@/src/components/ui/button";
 
-type DialogProps = { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode };
+type DialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+  className?: string;
+};
 
-export function Dialog({ open, onOpenChange, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -20,7 +25,14 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[1px] p-4" onMouseDown={() => onOpenChange(false)}>
-      <div role="dialog" aria-modal="true" className="w-full max-w-4xl max-h-[88vh]" onMouseDown={(event) => event.stopPropagation()}>{children}</div>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={cn("w-full max-w-4xl max-h-[88vh]", className)}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        {children}
+      </div>
     </div>
   );
 }

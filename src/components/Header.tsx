@@ -49,6 +49,7 @@ type HeaderProps = {
   installationId?: number;
   onOpenRepoModal: () => void;
   onLogout: () => void;
+  onSignIn: () => void;
 };
 
 function GitHubLogo({ className = "size-3.5" }: { className?: string }) {
@@ -79,6 +80,7 @@ export default function Header({
   installationId,
   onOpenRepoModal,
   onLogout,
+  onSignIn,
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
 
@@ -257,16 +259,15 @@ export default function Header({
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <a href="/api/auth/github">
-            <Button
-              variant="default"
-              size="sm"
-              className="h-7 gap-1.5 bg-[#24292e] text-white hover:bg-[#2f363d] dark:bg-[#238636] dark:hover:bg-[#2ea043]"
-            >
-              <GitHubLogo className="size-3.5" />
-              <span>Sign in with GitHub</span>
-            </Button>
-          </a>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={onSignIn}
+            className="h-7 gap-1.5 bg-[#24292e] text-white hover:bg-[#2f363d] dark:bg-[#238636] dark:hover:bg-[#2ea043]"
+          >
+            <GitHubLogo className="size-3.5" />
+            <span>Sign in with GitHub</span>
+          </Button>
         )}
       </div>
     </header>

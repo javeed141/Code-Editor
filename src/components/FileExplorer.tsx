@@ -22,6 +22,7 @@ type FileExplorerProps = {
   repoLoading: boolean;
   onRefresh?: () => void;
   onOpenRepoModal?: () => void;
+  onSignIn: () => void;
 };
 
 function TreeNode({
@@ -108,6 +109,7 @@ export default function FileExplorer({
   repoLoading,
   onRefresh,
   onOpenRepoModal,
+  onSignIn,
 }: FileExplorerProps) {
   const [query, setQuery] = useState("");
   const forceExpanded = query.trim().length > 0;
@@ -187,11 +189,13 @@ export default function FileExplorer({
             <p className="mt-1 text-[11px] text-[var(--text-muted)]">
               Sign in with GitHub to view and open your repositories.
             </p>
-            <a href="/api/auth/github" className="mt-3">
-              <Button size="sm" className="h-7 text-xs bg-[#24292e] text-white hover:bg-[#2f363d] dark:bg-[#238636] dark:hover:bg-[#2ea043]">
-                Sign in with GitHub
-              </Button>
-            </a>
+            <Button
+              onClick={onSignIn}
+              size="sm"
+              className="mt-3 h-7 text-xs bg-[#24292e] text-white hover:bg-[#2f363d] dark:bg-[#238636] dark:hover:bg-[#2ea043]"
+            >
+              Sign in with GitHub
+            </Button>
           </div>
         ) : isAuthenticated && !selectedRepository ? (
           <div className="flex flex-col items-center justify-center p-4 text-center">
