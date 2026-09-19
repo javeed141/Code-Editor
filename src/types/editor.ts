@@ -3,6 +3,7 @@ export type RepoFile = {
   name: string;
   type: "file" | "folder";
   content?: string;
+  originalContent?: string;
   children?: RepoFile[];
   sha?: string;
   size?: number;

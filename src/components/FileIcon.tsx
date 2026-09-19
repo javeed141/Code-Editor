@@ -1,19 +1,32 @@
 import React from "react";
-import {
-  Folder,
-  FolderOpen,
-  FileCode2,
-  FileJson2,
-  FileText,
-  FileSpreadsheet,
-  File,
-  Code2,
-  GitBranch,
-  Settings,
-  Image as ImageIcon,
-  Terminal,
-  FileCheck,
-} from "lucide-react";
+
+function VscodeIcon({
+  icon,
+  className,
+  color,
+}: {
+  icon: string;
+  className: string;
+  color: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={className}
+      style={{
+        backgroundColor: color,
+        maskImage: `url("/vscode-icons/${icon}.svg")`,
+        maskPosition: "center",
+        maskRepeat: "no-repeat",
+        maskSize: "contain",
+        WebkitMaskImage: `url("/vscode-icons/${icon}.svg")`,
+        WebkitMaskPosition: "center",
+        WebkitMaskRepeat: "no-repeat",
+        WebkitMaskSize: "contain",
+      }}
+    />
+  );
+}
 
 type FileIconProps = {
   name: string;
@@ -29,20 +42,11 @@ export default function FileIcon({
   className = "size-3.5 shrink-0",
 }: FileIconProps) {
   if (isFolder) {
-    if (isOpen) {
-      return (
-        <FolderOpen
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#dcb67a" }}
-        />
-      );
-    }
     return (
-      <Folder
-        aria-hidden="true"
+      <VscodeIcon
+        icon={isOpen ? "folder-open" : "folder"}
         className={className}
-        style={{ color: "#dcb67a" }}
+        color="#dcb67a"
       />
     );
   }
@@ -52,42 +56,36 @@ export default function FileIcon({
   // Special full filenames
   if (lowerName === "package.json" || lowerName === "package-lock.json") {
     return (
-      <span
-        aria-hidden="true"
-        className={`inline-flex items-center justify-center font-bold text-[9px] rounded-xs font-mono leading-none ${className}`}
-        style={{ color: "#cb3837" }}
-      >
-        <FileCode2 className={className} style={{ color: "#cb3837" }} />
-      </span>
+      <VscodeIcon icon="npm" className={className} color="#cb3837" />
     );
   }
 
   if (lowerName === "tsconfig.json") {
     return (
-      <FileCode2
-        aria-hidden="true"
+      <VscodeIcon
+        icon="tsconfig"
         className={className}
-        style={{ color: "#3178c6" }}
+        color="#3178c6"
       />
     );
   }
 
   if (lowerName.startsWith(".git")) {
     return (
-      <GitBranch
-        aria-hidden="true"
+      <VscodeIcon
+        icon="git"
         className={className}
-        style={{ color: "#f05032" }}
+        color="#f05032"
       />
     );
   }
 
   if (lowerName.startsWith(".env")) {
     return (
-      <Settings
-        aria-hidden="true"
+      <VscodeIcon
+        icon="settings"
         className={className}
-        style={{ color: "#ecd53f" }}
+        color="#ecd53f"
       />
     );
   }
@@ -96,137 +94,69 @@ export default function FileIcon({
   const ext = lowerName.split(".").pop() ?? "";
 
   switch (ext) {
+    case "java":
+      return <VscodeIcon icon="java" className={className} color="#f89820" />;
+    case "go":
+      return <VscodeIcon icon="go2" className={className} color="#00add8" />;
+    case "rs":
+      return <VscodeIcon icon="rust" className={className} color="#dea584" />;
+    case "rb":
+      return <VscodeIcon icon="ruby" className={className} color="#cc342d" />;
+    case "php":
+      return <VscodeIcon icon="php" className={className} color="#777bb4" />;
+    case "kt":
+    case "kts":
+      return <VscodeIcon icon="kotlin" className={className} color="#7f52ff" />;
+    case "swift":
+      return <VscodeIcon icon="swift" className={className} color="#f05138" />;
+    case "c":
+    case "h":
+    case "cpp":
+    case "cc":
+    case "cxx":
+      return <VscodeIcon icon="file" className={className} color="#659ad2" />;
     case "tsx":
-      return (
-        <Code2
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#00d8ff" }}
-        />
-      );
+      return <VscodeIcon icon="react" className={className} color="#00d8ff" />;
     case "ts":
-      return (
-        <span
-          aria-hidden="true"
-          className={`inline-flex items-center justify-center font-bold text-[8.5px] rounded-[2px] leading-none bg-[#3178c6] text-white px-0.5 py-[1px] ${className}`}
-          style={{ minWidth: "14px", height: "14px" }}
-        >
-          TS
-        </span>
-      );
+      return <VscodeIcon icon="typescript" className={className} color="#3178c6" />;
     case "jsx":
-      return (
-        <Code2
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#61dafb" }}
-        />
-      );
+      return <VscodeIcon icon="react" className={className} color="#61dafb" />;
     case "js":
     case "mjs":
     case "cjs":
-      return (
-        <span
-          aria-hidden="true"
-          className={`inline-flex items-center justify-center font-bold text-[8.5px] rounded-[2px] leading-none bg-[#f7df1e] text-black px-0.5 py-[1px] ${className}`}
-          style={{ minWidth: "14px", height: "14px" }}
-        >
-          JS
-        </span>
-      );
+      return <VscodeIcon icon="javascript" className={className} color="#f7df1e" />;
     case "json":
-      return (
-        <FileJson2
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#cbcb41" }}
-        />
-      );
+      return <VscodeIcon icon="json" className={className} color="#cbcb41" />;
     case "css":
     case "scss":
     case "sass":
     case "less":
-      return (
-        <FileCode2
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#42a5f5" }}
-        />
-      );
+      return <VscodeIcon icon="sass" className={className} color="#42a5f5" />;
     case "html":
     case "htm":
-      return (
-        <FileCode2
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#e44d26" }}
-        />
-      );
+      return <VscodeIcon icon="html" className={className} color="#e44d26" />;
     case "md":
     case "markdown":
-      return (
-        <FileText
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#42a5f5" }}
-        />
-      );
+      return <VscodeIcon icon="markdown" className={className} color="#42a5f5" />;
     case "py":
-      return (
-        <FileCode2
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#3776ab" }}
-        />
-      );
+      return <VscodeIcon icon="python" className={className} color="#3776ab" />;
     case "svg":
     case "png":
     case "jpg":
     case "jpeg":
     case "gif":
     case "ico":
-      return (
-        <ImageIcon
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#26a69a" }}
-        />
-      );
+      return <VscodeIcon icon="image" className={className} color="#26a69a" />;
     case "sh":
     case "bash":
     case "zsh":
-      return (
-        <Terminal
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#4caf50" }}
-        />
-      );
+      return <VscodeIcon icon="shell" className={className} color="#4caf50" />;
     case "yml":
     case "yaml":
-      return (
-        <FileSpreadsheet
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#cb171e" }}
-        />
-      );
+      return <VscodeIcon icon="file" className={className} color="#cb171e" />;
     case "lock":
-      return (
-        <FileCheck
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#858585" }}
-        />
-      );
+      return <VscodeIcon icon="file" className={className} color="#858585" />;
     default:
-      return (
-        <File
-          aria-hidden="true"
-          className={className}
-          style={{ color: "#858585" }}
-        />
-      );
+      return <VscodeIcon icon="file" className={className} color="#858585" />;
   }
 }
-

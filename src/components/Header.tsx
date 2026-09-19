@@ -5,6 +5,7 @@ import {
   ExternalLink,
   FolderGit2,
   GitCommitHorizontal,
+  Loader2,
   LogOut,
   Moon,
   Save,
@@ -39,6 +40,7 @@ type HeaderProps = {
   repositoryName: string;
   hasModifiedFile: boolean;
   changedCount: number;
+  isCommitting: boolean;
   onSave: () => void;
   onCommit: () => void;
   onCommandOpen: () => void;
@@ -70,6 +72,7 @@ export default function Header({
   repositoryName,
   hasModifiedFile,
   changedCount,
+  isCommitting,
   onSave,
   onCommit,
   onCommandOpen,
@@ -190,16 +193,30 @@ export default function Header({
           <Button
             variant={changedCount > 0 ? "default" : "outline"}
             onClick={onCommit}
-            disabled={changedCount === 0}
-            aria-label={changedCount > 0 ? `Commit ${changedCount} changes` : "No changes to commit"}
+            disabled={changedCount === 0 || isCommitting}
+            aria-label={
+              isCommitting
+                ? "Committing changes"
+                : changedCount > 0
+                  ? `Commit ${changedCount} changes`
+                  : "No changes to commit"
+            }
             className={`h-7 gap-1.5 ${
               changedCount > 0
                 ? "bg-[#238636] hover:bg-[#2ea043] text-white border-0"
                 : ""
             }`}
           >
-            <GitCommitHorizontal aria-hidden="true" className="size-3.5" />
-            {changedCount > 0 ? `Commit changes (${changedCount})` : "Commit changes"}
+            {isCommitting ? (
+              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+            ) : (
+              <GitCommitHorizontal aria-hidden="true" className="size-3.5" />
+            )}
+            {isCommitting
+              ? "Committing..."
+              : changedCount > 0
+                ? `Commit changes (${changedCount})`
+                : "Commit changes"}
           </Button>
         </Tooltip>
 

@@ -8,6 +8,7 @@ type EditorStatusBarProps = {
   canDiscard: boolean;
   onSave: () => void;
   onDiscard: () => void;
+  indexedDbStatus?: "idle" | "saving" | "saved" | "error";
 };
 
 export default function EditorStatusBar({
@@ -17,6 +18,7 @@ export default function EditorStatusBar({
   canDiscard,
   onSave,
   onDiscard,
+  indexedDbStatus = "idle",
 }: EditorStatusBarProps) {
   return (
     <footer className="flex h-6 shrink-0 items-center justify-between gap-3 bg-[#007acc] px-2 text-[11px] text-white select-none">
@@ -49,6 +51,11 @@ export default function EditorStatusBar({
               {language}
             </span>
           </>
+        )}
+        {indexedDbStatus !== "idle" && (
+          <span className="hidden opacity-75 md:inline" title="Local IndexedDB persistence status">
+            {indexedDbStatus === "saving" ? "Saving locally…" : indexedDbStatus === "saved" ? "Saved locally" : "Local save failed"}
+          </span>
         )}
 
         <Tooltip label="Encoding: UTF-8">

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, FolderGit2, RefreshCw, Search } from "lucide-react";
 import type { OpenFile, RepoFile } from "@/src/types/editor";
+import type { ChangedFile } from "@/src/components/CommitDialog";
 import type { SelectedRepository } from "@/src/types/github";
 import FileIcon from "@/src/components/FileIcon";
 import { Button } from "@/src/components/ui/button";
@@ -23,6 +24,7 @@ type FileExplorerProps = {
   onRefresh?: () => void;
   onOpenRepoModal?: () => void;
   onSignIn: () => void;
+  changedFiles: ChangedFile[];
 };
 
 function TreeNode({
@@ -110,6 +112,7 @@ export default function FileExplorer({
   onRefresh,
   onOpenRepoModal,
   onSignIn,
+  changedFiles,
 }: FileExplorerProps) {
   const [query, setQuery] = useState("");
   const forceExpanded = query.trim().length > 0;
@@ -172,6 +175,26 @@ export default function FileExplorer({
       <Separator />
 
       <ScrollArea className="flex-1 px-1 py-1.5">
+        {changedFiles.length > 0 && (
+          <div className="mb-2 border-b border-[var(--border-color)] px-1 pb-2">
+            <div className="mb-1 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              <span>Changes</span>
+              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-amber-300">{changedFiles.length}</span>
+            </div>
+            {changedFiles.map((file) => (
+              <button
+                key={file.path}
+                type="button"
+                onClick={() => onFileSelect(file.path)}
+                className={`flex w-full items-center gap-2 rounded-[3px] px-2 py-1 text-left text-xs hover:bg-[var(--list-hover)] ${selectedPath === file.path ? "bg-[var(--list-active)]" : ""}`}
+                title={`Open ${file.path}`}
+              >
+                <span className="shrink-0 text-amber-300">{file.status === "modified" ? "M" : file.status === "added" ? "A" : "D"}</span>
+                <span className="truncate">{file.path}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {repoLoading ? (
           <div className="space-y-2 px-3 py-4">
             <p className="text-xs text-[var(--text-muted)]">Loading files from GitHub...</p>

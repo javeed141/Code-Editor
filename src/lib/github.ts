@@ -141,6 +141,7 @@ export function buildFileTree(
     sha?: string;
     size?: number;
     content?: string;
+    originalContent?: string;
     language?: string;
     isBinary?: boolean;
   }>,
@@ -153,6 +154,7 @@ export function buildFileTree(
     sha?: string;
     size?: number;
     content?: string;
+    originalContent?: string;
     language?: string;
     isBinary?: boolean;
   };
@@ -181,6 +183,7 @@ export function buildFileTree(
             sha: entry.sha,
             size: entry.size,
             content: entry.content,
+            originalContent: entry.originalContent,
             language: entry.language,
             isBinary: entry.isBinary,
           });
@@ -215,6 +218,7 @@ export function buildFileTree(
         type: node.type,
         children: childrenArray,
         content: node.content,
+        originalContent: node.originalContent,
         sha: node.sha,
         size: node.size,
         language: node.language,

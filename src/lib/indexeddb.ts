@@ -14,6 +14,7 @@ export type StoredRepoFile = {
   name: string;
   type: "file" | "folder";
   content?: string;
+  originalContent?: string;
   sha?: string;
   size?: number;
   language?: string;
@@ -70,10 +71,11 @@ export async function saveRepositorySnapshot(snapshot: RepositorySnapshot): Prom
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(REPOSITORY_SNAPSHOTS_STORE, "readwrite");
     const store = transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE);
-    const request = store.put(snapshot);
+    store.put(snapshot);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error ?? new Error("Failed to save repository snapshot."));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Failed to save repository snapshot."));
+    transaction.onabort = () => reject(transaction.error ?? new Error("Failed to save repository snapshot."));
   });
 }
 
@@ -97,22 +99,13 @@ export async function saveRepositoryFiles(snapshotId: string, files: StoredRepoF
     const transaction = db.transaction(REPOSITORY_FILES_STORE, "readwrite");
     const store = transaction.objectStore(REPOSITORY_FILES_STORE);
 
-    let pending = files.length;
-    let failed = false;
-
     for (const file of files) {
-      const request = store.put({ ...file, snapshotId });
-      request.onsuccess = () => {
-        pending -= 1;
-        if (!failed && pending === 0) {
-          resolve();
-        }
-      };
-      request.onerror = () => {
-        failed = true;
-        reject(request.error ?? new Error("Failed to save repository files."));
-      };
+      store.put({ ...file, snapshotId });
     }
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Failed to save repository files."));
+    transaction.onabort = () => reject(transaction.error ?? new Error("Failed to save repository files."));
   });
 }
 

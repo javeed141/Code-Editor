@@ -7,6 +7,7 @@ import {
   Lock,
   X,
   FileWarning,
+  AlertTriangle,
 } from "lucide-react";
 import ChatPanel from "@/src/components/ChatPanel";
 import CodeEditor from "@/src/components/CodeEditor";
@@ -47,6 +48,8 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { mockRepository } from "@/src/data/mockRepository";
 import {
   getRepositoryFile,
@@ -68,15 +71,22 @@ function createOpenFile(
   path: string,
   content: string,
   name: string,
-  options?: { isBinary?: boolean; isTooLarge?: boolean; message?: string; sha?: string },
+  options?: {
+    isBinary?: boolean;
+    isTooLarge?: boolean;
+    message?: string;
+    sha?: string;
+    originalContent?: string;
+  },
 ): OpenFile {
+  const originalContent = options?.originalContent ?? content;
   return {
     path,
     name,
     language: getLanguageFromPath(path),
-    originalContent: content,
+    originalContent,
     content,
-    isModified: false,
+    isModified: content !== originalContent,
     sha: options?.sha,
     isBinary: options?.isBinary,
     isTooLarge: options?.isTooLarge,
@@ -101,6 +111,9 @@ export default function Dashboard() {
   const [openFiles, setOpenFiles] = useState<Record<string, OpenFile>>({});
   const [commandOpen, setCommandOpen] = useState(false);
   const [commitDialogOpen, setCommitDialogOpen] = useState(false);
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [indexedDbStatus, setIndexedDbStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [remoteConflict, setRemoteConflict] = useState<string | null>(null);
   const bootstrapStartedRef = useRef(false);
   const selectionRequestRef = useRef(0);
 
@@ -147,6 +160,7 @@ export default function Dashboard() {
         content: file.content,
         language: file.language,
         isBinary: file.isBinary,
+        originalContent: file.originalContent,
       })),
     );
 
@@ -159,15 +173,29 @@ export default function Dashboard() {
       headSha: cachedSnapshot.headSha,
     });
 
+    const draftFiles = cachedFiles.filter(
+      (file) =>
+        file.content !== undefined &&
+        file.originalContent !== undefined &&
+        file.content !== file.originalContent,
+    );
     const readme = cachedFiles.find((file) => file.name.toLowerCase() === "readme.md");
-    if (readme?.content !== undefined) {
-      setOpenFiles({
-        [readme.path]: createOpenFile(readme.path, readme.content ?? "", readme.name, {
-          sha: readme.sha,
-          isBinary: readme.isBinary,
-        }),
-      });
-      setSelectedPath(readme.path);
+    const filesToOpen = draftFiles.length > 0 ? draftFiles : readme ? [readme] : [];
+
+    if (filesToOpen.length > 0) {
+      setOpenFiles(
+        Object.fromEntries(
+          filesToOpen.map((file) => [
+            file.path,
+            createOpenFile(file.path, file.content ?? "", file.name, {
+              sha: file.sha,
+              isBinary: file.isBinary,
+              originalContent: file.originalContent,
+            }),
+          ]),
+        ),
+      );
+      setSelectedPath(filesToOpen[0].path);
     }
 
     return true;
@@ -211,6 +239,8 @@ export default function Dashboard() {
         const snapshotTree: RepoFile[] = Array.isArray(data.tree) ? data.tree : [];
         const files = Array.isArray(data.files) ? data.files : [];
         const snapshotId = getRepositorySnapshotId(repo.ownerLogin, repo.name, repo.defaultBranch);
+        const cachedFiles = await getRepositoryFiles(snapshotId);
+        const cachedFilesByPathForHydration = new Map(cachedFiles.map((file) => [file.path, file]));
 
         await saveRepositorySnapshot({
           id: snapshotId,
@@ -223,22 +253,47 @@ export default function Dashboard() {
 
         await saveRepositoryFiles(
           snapshotId,
-          files.map((file: { path: string; name: string; content: string; sha?: string; size?: number; language?: string; isBinary?: boolean }) => ({
-            id: `${snapshotId}:${file.path}`,
-            snapshotId,
-            path: file.path,
-            name: file.name,
-            type: "file",
-            content: file.content,
-            sha: file.sha,
-            size: file.size,
-            language: file.language,
-            isBinary: file.isBinary,
-            updatedAt: Date.now(),
-          })),
+          files.map((file: { path: string; name: string; content: string; sha?: string; size?: number; language?: string; isBinary?: boolean }) => {
+            const cachedFile = cachedFilesByPathForHydration.get(file.path);
+            const hasDraft =
+              cachedFile?.originalContent !== undefined &&
+              cachedFile.content !== cachedFile.originalContent;
+
+            return {
+              id: `${snapshotId}:${file.path}`,
+              snapshotId,
+              path: file.path,
+              name: file.name,
+              type: "file" as const,
+              content: hasDraft ? cachedFile.content : file.content,
+              originalContent: hasDraft ? cachedFile.originalContent : file.content,
+              sha: hasDraft ? cachedFile.sha : file.sha,
+              size: file.size,
+              language: file.language,
+              isBinary: file.isBinary,
+              updatedAt: Date.now(),
+            };
+          }),
         );
 
-        setRepositoryTree(snapshotTree);
+        const persistedFiles = files.map((file: { path: string; name: string; content: string; sha?: string; size?: number; language?: string; isBinary?: boolean }) => {
+          const cachedFile = cachedFilesByPathForHydration.get(file.path);
+          const hasDraft =
+            cachedFile?.originalContent !== undefined &&
+            cachedFile.content !== cachedFile.originalContent;
+          return {
+            path: file.path,
+            type: "blob",
+            sha: hasDraft ? cachedFile.sha : file.sha,
+            size: file.size,
+            content: hasDraft ? cachedFile.content : file.content,
+            originalContent: hasDraft ? cachedFile.originalContent : file.content,
+            language: file.language,
+            isBinary: file.isBinary,
+          };
+        });
+        const persistedTree = buildFileTree(persistedFiles);
+        setRepositoryTree(persistedTree);
         setSelectedRepository({
           ...initialRepo,
           branch: repo.defaultBranch,
@@ -256,24 +311,33 @@ export default function Dashboard() {
             }
           });
         };
-        visit(snapshotTree);
+        visit(persistedTree);
 
         const readme = flattenedFiles.find(
           (file) => file.type === "file" && file.name.toLowerCase() === "readme.md",
         );
+        const draftFiles = flattenedFiles.filter(
+          (file) =>
+            file.content !== undefined &&
+            file.originalContent !== undefined &&
+            file.content !== file.originalContent,
+        );
+        const filesToOpen = draftFiles.length > 0 ? draftFiles : readme ? [readme] : [];
 
-        if (readme?.content !== undefined) {
-          const nextFile = createOpenFile(
-            readme.path,
-            readme.content ?? "",
-            readme.name,
-            {
-              sha: readme.sha,
-              isBinary: readme.isBinary,
-            },
+        if (filesToOpen.length > 0) {
+          setOpenFiles(
+            Object.fromEntries(
+              filesToOpen.map((file) => [
+                file.path,
+                createOpenFile(file.path, file.content ?? "", file.name, {
+                  sha: file.sha,
+                  isBinary: file.isBinary,
+                  originalContent: file.originalContent,
+                }),
+              ]),
+            ),
           );
-          setOpenFiles({ [readme.path]: nextFile });
-          setSelectedPath(readme.path);
+          setSelectedPath(filesToOpen[0].path);
         }
       } else {
         const errData = await res.json();
@@ -393,12 +457,19 @@ export default function Dashboard() {
     if (selectedRepository) {
       const snapshotFile = findFileByPath(repositoryTree, path);
       if (snapshotFile?.content !== undefined) {
-        setOpenFiles((current) => ({
-          ...current,
-          [path]: createOpenFile(path, snapshotFile.content ?? "", snapshotFile.name, {
-            sha: snapshotFile.sha,
-            isBinary: snapshotFile.isBinary,
-          }),
+      const snapshotId = getRepositorySnapshotId(
+        selectedRepository.owner,
+        selectedRepository.repo,
+        selectedRepository.defaultBranch,
+      );
+      const cachedFile = await getRepositoryFile(snapshotId, path);
+      setOpenFiles((current) => ({
+        ...current,
+        [path]: createOpenFile(path, snapshotFile.content ?? "", snapshotFile.name, {
+          sha: snapshotFile.sha,
+          isBinary: snapshotFile.isBinary,
+          originalContent: cachedFile?.originalContent,
+        }),
         }));
         setSelectedPath(path);
         return;
@@ -417,6 +488,7 @@ export default function Dashboard() {
             [path]: createOpenFile(path, cachedFile.content ?? "", cachedFile.name, {
               sha: cachedFile.sha,
               isBinary: cachedFile.isBinary,
+              originalContent: cachedFile.originalContent,
             }),
           }));
           setSelectedPath(path);
@@ -480,23 +552,102 @@ export default function Dashboard() {
     });
   }
 
-  const handleSave = useCallback(() => {
-    if (!selectedPath) return;
-    setOpenFiles((current) => {
-      const file = current[selectedPath];
-      if (!file) return current;
-      return {
-        ...current,
-        [selectedPath]: {
-          ...file,
-          // Keep the GitHub version as the baseline. "Save" only preserves
-          // the current editor value; committing is what clears Git changes.
+  const handleSave = useCallback(async () => {
+    const modifiedFiles = Object.values(openFiles).filter(
+      (file) => file.isModified && !file.isBinary && !file.isTooLarge,
+    );
+
+    if (!modifiedFiles.length) return;
+
+    if (!selectedRepository) {
+      console.error("Unable to save changes: no repository snapshot is selected.");
+      return;
+    }
+
+    const snapshotId = getRepositorySnapshotId(
+      selectedRepository.owner,
+      selectedRepository.repo,
+      selectedRepository.defaultBranch,
+    );
+    const savedAt = Date.now();
+    setIndexedDbStatus("saving");
+
+    try {
+      await saveRepositoryFiles(
+        snapshotId,
+        modifiedFiles.map((file) => ({
+          id: `${snapshotId}:${file.path}`,
+          snapshotId,
+          path: file.path,
+          name: file.name,
+          type: "file" as const,
           content: file.content,
-          isModified: file.content !== file.originalContent,
-        },
-      };
-    });
-  }, [selectedPath]);
+          originalContent: file.originalContent,
+          sha: file.sha,
+          language: file.language,
+          isBinary: file.isBinary,
+          updatedAt: savedAt,
+        })),
+      );
+      setIndexedDbStatus("saved");
+
+    } catch (error) {
+      console.error("Failed to save editor changes to IndexedDB:", error);
+      setIndexedDbStatus("error");
+    }
+  }, [openFiles, selectedRepository]);
+
+  async function handleDirectCommit() {
+    if (!selectedRepository || changedFiles.length === 0 || isCommitting) return;
+    setIsCommitting(true);
+    setRemoteConflict(null);
+    try {
+      const response = await fetch("/api/github/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: selectedRepository.owner,
+          repo: selectedRepository.repo,
+          branch: selectedRepository.defaultBranch,
+          expectedHeadSha: selectedRepository.headSha,
+          message: "Update files",
+          files: changedFiles.map((file) => ({
+            path: file.path,
+            content: file.status === "deleted" ? null : file.content,
+            status: file.status,
+          })),
+        }),
+      });
+      const data = await response.json();
+      if (response.status === 409) {
+        setRemoteConflict("The remote branch changed. Refresh the repository before committing again.");
+        toast.add({
+          title: "Commit failed",
+          description: "The remote branch changed. Refresh the repository before committing again.",
+          type: "error",
+        });
+        return;
+      }
+      if (!response.ok) {
+        const message = data.message || data.error || "Commit failed. Try again.";
+        setRemoteConflict(message);
+        toast.add({ title: "Commit failed", description: message, type: "error" });
+        return;
+      }
+      await handleCommitSuccess(data.sha, data.headSha || data.sha, changedFiles);
+      toast.add({
+        title: "Committed successfully",
+        description: `Committed ${changedFiles.length} file${changedFiles.length === 1 ? "" : "s"} to GitHub.`,
+        type: "success",
+      });
+    } catch {
+      const message = "Network error. Unable to reach GitHub.";
+      setRemoteConflict(message);
+      toast.add({ title: "Commit failed", description: message, type: "error" });
+    } finally {
+      setIsCommitting(false);
+    }
+  }
 
   function handleDiscard() {
     if (!selectedPath) return;
@@ -545,7 +696,7 @@ export default function Dashboard() {
    * Called by CommitDialog after a successful GitHub commit.
    * Marks every committed file as clean, updates originalContent and headSha.
    */
-  function handleCommitSuccess(
+  async function handleCommitSuccess(
     _commitSha: string,
     newHeadSha: string,
     committedFiles: ChangedFile[],
@@ -571,6 +722,46 @@ export default function Dashboard() {
     setSelectedRepository((prev) =>
       prev ? { ...prev, headSha: newHeadSha } : prev,
     );
+
+    if (selectedRepository) {
+      const snapshotId = getRepositorySnapshotId(
+        selectedRepository.owner,
+        selectedRepository.repo,
+        selectedRepository.defaultBranch,
+      );
+
+      try {
+        await saveRepositoryFiles(
+          snapshotId,
+          committedFiles.map((committedFile) => {
+            const file = openFiles[committedFile.path];
+            return {
+              id: `${snapshotId}:${committedFile.path}`,
+              snapshotId,
+              path: committedFile.path,
+              name: committedFile.name,
+              type: "file" as const,
+              content: committedFile.content,
+              originalContent: committedFile.content,
+              sha: file?.sha,
+              language: file?.language,
+              isBinary: file?.isBinary,
+              updatedAt: Date.now(),
+            };
+          }),
+        );
+        await saveRepositorySnapshot({
+          id: snapshotId,
+          owner: selectedRepository.owner,
+          repo: selectedRepository.repo,
+          branch: selectedRepository.branch ?? selectedRepository.defaultBranch,
+          headSha: newHeadSha,
+          fetchedAt: Date.now(),
+        });
+      } catch (error) {
+        console.error("Failed to update the IndexedDB snapshot after commit:", error);
+      }
+    }
   }
 
   // Sign out and clear ALL browser data
@@ -640,6 +831,32 @@ export default function Dashboard() {
   }, [handleSave]);
 
   const selectedFile = selectedPath ? openFiles[selectedPath] : undefined;
+  const workspaceFileMap = new Map(
+    Object.values(openFiles).map((file) => [
+      file.path,
+      {
+        path: file.path,
+        content: file.content,
+        language: file.language,
+        isModified: file.isModified,
+      },
+    ]),
+  );
+  const addWorkspaceFiles = (nodes: RepoFile[]) => {
+    for (const node of nodes) {
+      if (node.type === "file" && node.content !== undefined && !workspaceFileMap.has(node.path)) {
+        workspaceFileMap.set(node.path, {
+          path: node.path,
+          content: node.content,
+          language: node.language ?? getLanguageFromPath(node.path),
+          isModified: false,
+        });
+      }
+      if (node.children) addWorkspaceFiles(node.children);
+    }
+  };
+  addWorkspaceFiles(repositoryTree);
+  const workspaceFiles = Array.from(workspaceFileMap.values());
 
   return (
     <main className="flex h-screen min-h-[520px] flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
@@ -647,8 +864,9 @@ export default function Dashboard() {
         repositoryName={selectedRepository ? selectedRepository.repo : "demo-project"}
         hasModifiedFile={Boolean(selectedFile?.isModified)}
         changedCount={changedFiles.length}
+        isCommitting={isCommitting}
         onSave={handleSave}
-        onCommit={() => setCommitDialogOpen(true)}
+        onCommit={handleDirectCommit}
         onCommandOpen={() => setCommandOpen(true)}
         user={authenticatedUser}
         authLoading={authLoading}
@@ -673,6 +891,7 @@ export default function Dashboard() {
             onRefresh={handleRefreshTree}
             onOpenRepoModal={() => setRepoModalOpen(true)}
             onSignIn={handleGitHubSignIn}
+            changedFiles={changedFiles}
           />
         </ResizablePanel>
 
@@ -805,7 +1024,16 @@ export default function Dashboard() {
         <ResizableHandle className="max-[800px]:hidden" />
 
         <ResizablePanel defaultSize={25} className="max-[800px]:hidden">
-          <ChatPanel />
+          <ChatPanel
+            workspace={{
+              repository: selectedRepository
+                ? `${selectedRepository.owner}/${selectedRepository.repo}`
+                : "local workspace",
+              branch: selectedRepository?.branch ?? selectedRepository?.defaultBranch ?? "local",
+              files: workspaceFiles,
+              currentFile: selectedFile?.path ?? null,
+            }}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
 
@@ -816,7 +1044,17 @@ export default function Dashboard() {
         canDiscard={Boolean(selectedFile?.isModified)}
         onSave={handleSave}
         onDiscard={handleDiscard}
+        indexedDbStatus={indexedDbStatus}
       />
+
+      {remoteConflict && (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          <span className="flex items-center gap-2"><AlertTriangle className="size-3.5" />{remoteConflict}</span>
+          <Button variant="outline" size="sm" onClick={() => { setRemoteConflict(null); void handleRefreshTree(); }}>
+            Refresh repository
+          </Button>
+        </div>
+      )}
 
       {selectedRepository && (
         <CommitDialog

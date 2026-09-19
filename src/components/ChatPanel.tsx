@@ -16,7 +16,20 @@ type ChatMessage = {
   content: string;
 };
 
-export default function ChatPanel() {
+type Workspace = {
+  repository: string;
+  branch: string;
+  currentFile: string | null;
+  files: Array<{
+    path: string;
+    content: string;
+    language: string;
+    isModified: boolean;
+  }>;
+};
+
+export default function ChatPanel({ workspace }: { workspace: Workspace }) {
+  const [isLoading, setIsLoading] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -26,22 +39,44 @@ export default function ChatPanel() {
     },
   ]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = input.trim();
-    if (!message) return;
+    if (!message || isLoading) return;
 
     const id = Date.now();
-    setMessages((current) => [
-      ...current,
-      { id, role: "user", content: message },
-      {
-        id: id + 1,
-        role: "assistant",
-        content: "I have received your request. AI agent integration is ready for connection.",
-      },
-    ]);
     setInput("");
+    setMessages((current) => [...current, { id, role: "user", content: message }]);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          workspace,
+          history: messages.slice(-10).map(({ role, content }) => ({ role, content })),
+        }),
+      });
+      const data = (await response.json()) as { response?: string; error?: string };
+      if (!response.ok) throw new Error(data.error || "The AI request failed.");
+      setMessages((current) => [
+        ...current,
+        { id: id + 1, role: "assistant", content: data.response || "No response was returned." },
+      ]);
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: id + 1,
+          role: "assistant",
+          content: error instanceof Error ? error.message : "The AI request failed.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -105,11 +140,11 @@ export default function ChatPanel() {
             />
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-[var(--text-muted)]">
-                Press Enter to send
+                {isLoading ? "Thinking..." : "Press Enter to send"}
               </span>
               <Button
                 type="submit"
-                disabled={!input.trim()}
+                disabled={!input.trim() || isLoading}
                 className="bg-[#0e639c] text-white hover:bg-[#1177bb]"
                 aria-label="Send message"
               >
