@@ -19,19 +19,10 @@ export async function GET(request: NextRequest) {
   const state = crypto.randomBytes(16).toString("hex");
   await setOAuthState(state);
 
-  if (appSlug) {
-    // ── STEP 1 of 2: GitHub App flow ──────────────────────────────────────────
-    // Send user to GitHub's native App installation page.
-    // GitHub will show "Only select repositories" screen here.
-    // After the user installs/selects repos, GitHub redirects to our callback
-    // with ?installation_id=...&setup_action=install
-    // The callback then kicks off Step 2 (OAuth authorization).
-    const installUrl = new URL(`https://github.com/apps/${appSlug}/installations/new`);
-    installUrl.searchParams.set("state", state);
-    return NextResponse.redirect(installUrl.toString());
-  }
-
-  // ── Standard OAuth App flow (fallback when no GITHUB_APP_SLUG) ─────────────
+  // Always initiate GitHub OAuth authorization with the dynamic redirect_uri!
+  // Passing redirect_uri explicitly to /login/oauth/authorize forces GitHub to redirect
+  // back to the active origin (e.g. Vercel or localhost) rather than defaulting to
+  // whichever single callback URL is registered in the GitHub App settings.
   const authUrl = new URL("https://github.com/login/oauth/authorize");
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", callbackUrl);
