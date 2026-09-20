@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTheme } from "@/src/context/ThemeContext";
+import { defineVsCodeThemes, monacoThemeFor } from "@/src/lib/monacoThemes";
 
 type DiffViewerProps = {
   original: string;
@@ -14,6 +16,7 @@ type DiffViewerProps = {
  */
 export default function DiffViewer({ original, modified, language }: DiffViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -25,6 +28,7 @@ export default function DiffViewer({ original, modified, language }: DiffViewerP
       try {
         const monaco = await import("@monaco-editor/react").then((m) => m.loader.init());
         if (disposed || !containerRef.current) return;
+        defineVsCodeThemes(monaco);
 
         diffEditor = monaco.editor.createDiffEditor(containerRef.current, {
           readOnly: true,
@@ -34,7 +38,7 @@ export default function DiffViewer({ original, modified, language }: DiffViewerP
           fontSize: 12,
           lineNumbers: "on",
           wordWrap: "on",
-          theme: document.documentElement.dataset.theme === "light" ? "vs" : "vs-dark",
+          theme: monacoThemeFor(theme),
           scrollbar: { vertical: "auto", horizontal: "auto" },
         }) as { dispose: () => void; setModel: (m: unknown) => void };
 
@@ -51,7 +55,7 @@ export default function DiffViewer({ original, modified, language }: DiffViewerP
       disposed = true;
       if (diffEditor) diffEditor.dispose();
     };
-  }, [original, modified, language]);
+  }, [original, modified, language, theme]);
 
   return (
     <div
@@ -60,4 +64,3 @@ export default function DiffViewer({ original, modified, language }: DiffViewerP
     />
   );
 }
-

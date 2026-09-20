@@ -8,8 +8,6 @@ import {
   GitPullRequestDraft,
   Loader2,
   LogOut,
-  Moon,
-  Sun,
   TerminalSquare,
   User as UserIcon,
 } from "lucide-react";
@@ -34,6 +32,7 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import { useTheme } from "@/src/context/ThemeContext";
+import { themeIds, vscodeThemes, type ThemeId } from "@/src/lib/vscodeThemes";
 import type { GitHubUser, SelectedRepository } from "@/src/types/github";
 
 type HeaderProps = {
@@ -85,7 +84,7 @@ export default function Header({
   onLogout,
   onSignIn,
 }: HeaderProps) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const manageReposUrl = installationId
     ? `https://github.com/settings/installations/${installationId}`
@@ -142,21 +141,19 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Tooltip label={`Switch to ${theme === "dark" ? "Light" : "Dark"} theme`}>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            aria-label="Toggle theme"
-            className="size-7"
+        <label className="hidden items-center gap-1.5 text-[10px] text-[var(--text-muted)] sm:flex">
+          Theme
+          <select
+            aria-label="Color theme"
+            value={theme}
+            onChange={(event) => setTheme(event.target.value as ThemeId)}
+            className="h-7 rounded-[3px] border border-[var(--input-border)] bg-[var(--input-bg)] px-1.5 text-[11px] text-[var(--input-fg)] outline-none focus:border-[var(--accent-color)]"
           >
-            {theme === "dark" ? (
-              <Sun aria-hidden="true" className="size-3.5 text-amber-400" />
-            ) : (
-              <Moon aria-hidden="true" className="size-3.5 text-slate-700" />
-            )}
-          </Button>
-        </Tooltip>
+            {themeIds.map((themeId) => (
+              <option key={themeId} value={themeId}>{vscodeThemes[themeId].label}</option>
+            ))}
+          </select>
+        </label>
 
         <Tooltip label="Open command menu (⌘K)">
           <Button

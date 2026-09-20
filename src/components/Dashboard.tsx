@@ -791,44 +791,38 @@ export default function Dashboard() {
       prev ? { ...prev, headSha: newHeadSha } : prev,
     );
 
-    if (selectedRepository) {
-      const snapshotId = getRepositorySnapshotId(
-        selectedRepository.owner,
-        selectedRepository.repo,
-        selectedRepository.defaultBranch,
-      );
+    const snapshotId = getSnapshotId();
 
-      try {
-        await saveRepositoryFiles(
-          snapshotId,
-          committedFiles.map((committedFile) => {
-            const file = openFiles[committedFile.path];
-            return {
-              id: `${snapshotId}:${committedFile.path}`,
-              snapshotId,
-              path: committedFile.path,
-              name: committedFile.name,
-              type: "file" as const,
-              content: committedFile.content,
-              originalContent: committedFile.content,
-              sha: file?.sha,
-              language: file?.language,
-              isBinary: file?.isBinary,
-              updatedAt: Date.now(),
-            };
-          }),
-        );
-        await saveRepositorySnapshot({
-          id: snapshotId,
-          owner: selectedRepository.owner,
-          repo: selectedRepository.repo,
-          branch: selectedRepository.branch ?? selectedRepository.defaultBranch,
-          headSha: newHeadSha,
-          fetchedAt: Date.now(),
-        });
-      } catch (error) {
-        console.error("Failed to update the IndexedDB snapshot after commit:", error);
-      }
+    try {
+      await saveRepositoryFiles(
+        snapshotId,
+        committedFiles.map((committedFile) => {
+          const file = openFiles[committedFile.path];
+          return {
+            id: `${snapshotId}:${committedFile.path}`,
+            snapshotId,
+            path: committedFile.path,
+            name: committedFile.name,
+            type: "file" as const,
+            content: committedFile.content,
+            originalContent: committedFile.content,
+            sha: file?.sha,
+            language: file?.language,
+            isBinary: file?.isBinary,
+            updatedAt: Date.now(),
+          };
+        }),
+      );
+      await saveRepositorySnapshot({
+        id: snapshotId,
+        owner: selectedRepository?.owner ?? "demo",
+        repo: selectedRepository?.repo ?? "demo-project",
+        branch: selectedRepository?.branch ?? selectedRepository?.defaultBranch ?? "main",
+        headSha: newHeadSha,
+        fetchedAt: Date.now(),
+      });
+    } catch (error) {
+      console.error("Failed to update the IndexedDB snapshot after commit:", error);
     }
   }
 

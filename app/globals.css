@@ -1,65 +1,74 @@
 @import "tailwindcss";
 
-:root {
-  /* VS Code Dark Modern default */
-  --background: #1e1e1e;
+:root,
+html.dark {
+  /* VS Code Dark Modern — extensions/theme-defaults/themes/dark_modern.json */
+  --background: #1f1f1f;
   --foreground: #cccccc;
-  --editor-bg: #1e1e1e;
-  --sidebar-bg: #252526;
-  --titlebar-bg: #1f1f1f;
-  --tabbar-bg: #252526;
-  --tab-active-bg: #1e1e1e;
-  --tab-inactive-bg: #2d2d2d;
+  --editor-bg: #1f1f1f;
+  --sidebar-bg: #181818;
+  --titlebar-bg: #181818;
+  --tabbar-bg: #2b2b2b;
+  --tab-active-bg: #1f1f1f;
+  --tab-inactive-bg: #2b2b2b;
   --tab-active-fg: #ffffff;
-  --tab-inactive-fg: #969696;
-  --statusbar-bg: #007acc;
-  --statusbar-fg: #ffffff;
+  --tab-inactive-fg: #9d9d9d;
+  --statusbar-bg: #181818;
+  --statusbar-fg: #cccccc;
   --border-color: #2b2b2b;
-  --border-subtle: #333333;
-  --input-bg: #3c3c3c;
+  --border-subtle: #3c3c3c;
+  --input-bg: #313131;
   --input-border: #3c3c3c;
   --input-fg: #cccccc;
   --list-hover: #2a2d2e;
   --list-active: #094771;
   --list-active-fg: #ffffff;
-  --text-muted: #858585;
-  --accent-color: #007acc;
-  --accent-hover: #1177bb;
-  --scrollbar-thumb: #475569;
-  --scrollbar-track: #1e1e1e;
-  --card-bg: #252526;
-  --card-header-bg: #1f1f1f;
+  --text-muted: #9d9d9d;
+  --accent-color: #0078d4;
+  --accent-hover: #026ec1;
+  --scrollbar-thumb: #6e7681;
+  --scrollbar-track: #1f1f1f;
+  --card-bg: #1f1f1f;
+  --card-header-bg: #181818;
+  --success: #2ea043;
+  --warning: #e2c08d;
+  --danger: #f85149;
+  --selection: #2489db82;
 }
 
-html.light, :root:not(.dark):has(html.light) {
-  /* VS Code Light Modern */
-  --background: #ffffff;
+html.light {
+  /* VS Code Light Modern — extensions/theme-defaults/themes/light_modern.json */
+  --background: #f8f8f8;
   --foreground: #3b3b3b;
   --editor-bg: #ffffff;
-  --sidebar-bg: #f3f3f3;
+  --sidebar-bg: #f8f8f8;
   --titlebar-bg: #f8f8f8;
-  --tabbar-bg: #ececec;
+  --tabbar-bg: #e5e5e5;
   --tab-active-bg: #ffffff;
-  --tab-inactive-bg: #ececec;
-  --tab-active-fg: #333333;
-  --tab-inactive-fg: #666666;
-  --statusbar-bg: #007acc;
-  --statusbar-fg: #ffffff;
+  --tab-inactive-bg: #e5e5e5;
+  --tab-active-fg: #3b3b3b;
+  --tab-inactive-fg: #616161;
+  --statusbar-bg: #f8f8f8;
+  --statusbar-fg: #3b3b3b;
   --border-color: #e5e5e5;
-  --border-subtle: #eaeaea;
+  --border-subtle: #cecece;
   --input-bg: #ffffff;
   --input-border: #cecece;
-  --input-fg: #333333;
-  --list-hover: #e8e8e8;
-  --list-active: #e4e6f1;
-  --list-active-fg: #0060c0;
-  --text-muted: #6e6e6e;
-  --accent-color: #007acc;
-  --accent-hover: #0062a3;
-  --scrollbar-thumb: #c1c1c1;
-  --scrollbar-track: #f3f3f3;
-  --card-bg: #f3f3f3;
+  --input-fg: #3b3b3b;
+  --list-hover: #f2f2f2;
+  --list-active: #e8e8e8;
+  --list-active-fg: #000000;
+  --text-muted: #616161;
+  --accent-color: #005fb8;
+  --accent-hover: #0258a8;
+  --scrollbar-thumb: #6e7681;
+  --scrollbar-track: #f8f8f8;
+  --card-bg: #ffffff;
   --card-header-bg: #f8f8f8;
+  --success: #2ea043;
+  --warning: #895503;
+  --danger: #f85149;
+  --selection: #add6ff80;
 }
 
 body {
@@ -75,7 +84,7 @@ body {
 }
 
 ::selection {
-  background: rgba(0, 122, 204, 0.35);
+  background: var(--selection);
 }
 
 button,

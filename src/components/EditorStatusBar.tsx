@@ -21,7 +21,7 @@ export default function EditorStatusBar({
   indexedDbStatus = "idle",
 }: EditorStatusBarProps) {
   return (
-    <footer className="flex h-6 shrink-0 items-center justify-between gap-3 bg-[#007acc] px-2 text-[11px] text-white select-none">
+    <footer className="flex h-6 shrink-0 items-center justify-between gap-3 border-t border-[var(--border-color)] bg-[var(--statusbar-bg)] px-2 text-[11px] text-[var(--statusbar-fg)] select-none">
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex items-center gap-1">
           {isModified ? (

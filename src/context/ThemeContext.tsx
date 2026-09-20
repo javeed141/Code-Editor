@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { isThemeId, vscodeThemes, type ThemeId } from "@/src/lib/vscodeThemes";
 
-export type Theme = "dark" | "light";
+export type Theme = ThemeId;
 
 type ThemeContextType = {
   theme: Theme;
@@ -17,18 +18,21 @@ const THEME_STORAGE_KEY = "ai-code-editor-theme";
 function getInitialTheme(): Theme {
   if (typeof window !== "undefined") {
     try {
-      const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
-      if (stored === "dark" || stored === "light") {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      if (stored && isThemeId(stored)) {
         return stored;
       }
+      // Keep preferences created by the previous two-theme selector.
+      if (stored === "dark") return "darkModern";
+      if (stored === "light") return "lightModern";
       if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-        return "light";
+        return "lightModern";
       }
     } catch {
       // Ignore localStorage errors
     }
   }
-  return "dark";
+  return "darkModern";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -36,7 +40,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "dark") {
+    const definition = vscodeThemes[theme];
+    if (definition.isDark) {
       root.classList.add("dark");
       root.classList.remove("light");
       root.style.colorScheme = "dark";
@@ -45,6 +50,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.classList.remove("dark");
       root.style.colorScheme = "light";
     }
+    root.dataset.vscodeTheme = theme;
+    Object.entries(definition.workspace).forEach(([property, value]) => {
+      root.style.setProperty(property, value);
+    });
     try {
       localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {
@@ -57,7 +66,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+    setThemeState((prev) => (vscodeThemes[prev].isDark ? "lightModern" : "darkModern"));
   };
 
   return (
