@@ -66,3 +66,4 @@ export function getGitHubCallbackUrl(request: NextRequest): string {
 
   return dynamicCallback;
 }
+
