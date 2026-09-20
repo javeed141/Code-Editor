@@ -5,9 +5,13 @@ import { setOAuthState } from "@/src/lib/session";
 export async function GET(request: NextRequest) {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const appSlug = process.env.GITHUB_APP_SLUG?.trim();
+  const envCallback = process.env.GITHUB_CALLBACK_URL;
+  const isLocalEnv = envCallback?.includes("localhost");
+  const isRemoteRequest = !request.nextUrl.hostname.includes("localhost");
   const callbackUrl =
-    process.env.GITHUB_CALLBACK_URL ||
-    new URL("/api/auth/github/callback", request.nextUrl.origin).toString();
+    envCallback && !(isLocalEnv && isRemoteRequest)
+      ? envCallback
+      : new URL("/api/auth/github/callback", request.nextUrl.origin).toString();
 
   if (!clientId) {
     return NextResponse.json(

@@ -1,11 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
+  Check,
   Code2,
+  Copy,
   ExternalLink,
   FolderGit2,
   GitCommitHorizontal,
   GitPullRequestDraft,
+  Globe,
   Loader2,
   LogOut,
   TerminalSquare,
@@ -92,6 +96,24 @@ export default function Header({
   const clerk = useClerk();
   const router = useRouter();
 
+  const [appUrl, setAppUrl] = useState<string>("");
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const originUrl = window.location.origin;
+      localStorage.setItem("ai-code-editor-app-url", originUrl);
+      setAppUrl(originUrl);
+    }
+  }, []);
+
+  const handleCopyUrl = () => {
+    if (!appUrl) return;
+    navigator.clipboard.writeText(appUrl);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
   const manageReposUrl = installationId
     ? `https://github.com/settings/installations/${installationId}`
     : "https://github.com/settings/installations";
@@ -127,6 +149,23 @@ export default function Header({
         <span className="truncate text-xs font-semibold text-[var(--foreground)] sm:hidden">
           AI Code Editor
         </span>
+
+        {/* Dynamic App URL indicator with 1-click copy */}
+        <Tooltip label={copiedUrl ? "Copied URL to clipboard!" : `Active App URL: ${appUrl} (Click to copy)`}>
+          <button
+            type="button"
+            onClick={handleCopyUrl}
+            className="hidden md:inline-flex items-center gap-1 rounded-[3px] border border-[var(--border-color)] bg-[var(--card-bg)] px-2 py-0.5 text-[10px] text-[var(--text-muted)] hover:text-[var(--foreground)] hover:border-[#007acc] transition-colors cursor-pointer"
+          >
+            <Globe className="size-3 text-[#007acc]" />
+            <span className="font-mono truncate max-w-[170px]">{appUrl || "Detecting..."}</span>
+            {copiedUrl ? (
+              <Check className="size-2.5 text-emerald-400" />
+            ) : (
+              <Copy className="size-2.5 opacity-50" />
+            )}
+          </button>
+        </Tooltip>
 
         {user && hasMultipleRepos && (
           <>
