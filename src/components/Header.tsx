@@ -9,8 +9,10 @@ import {
   Loader2,
   LogOut,
   TerminalSquare,
+  Unlink,
   User as UserIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -35,7 +37,7 @@ import { Tooltip } from "@/src/components/ui/tooltip";
 import { useTheme } from "@/src/context/ThemeContext";
 import { themeIds, vscodeThemes, type ThemeId } from "@/src/lib/vscodeThemes";
 import type { GitHubUser, SelectedRepository } from "@/src/types/github";
-import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
+import { Show, UserButton, useClerk } from "@clerk/nextjs";
 
 type HeaderProps = {
   repositoryName: string;
@@ -87,6 +89,8 @@ export default function Header({
   onSignIn,
 }: HeaderProps) {
   const { theme, setTheme } = useTheme();
+  const clerk = useClerk();
+  const router = useRouter();
 
   const manageReposUrl = installationId
     ? `https://github.com/settings/installations/${installationId}`
@@ -273,33 +277,42 @@ export default function Header({
                 </DropdownMenuItem>
               </a>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLogout} className="text-red-400 hover:text-red-300">
+              <DropdownMenuItem onClick={onLogout} className="text-[var(--text-muted)] hover:text-[var(--foreground)]">
+                <Unlink className="mr-2 size-3.5" />
+                <span>Disconnect GitHub</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  await onLogout();
+                  await clerk.signOut({ redirectUrl: "/sign-in" });
+                }}
+                className="text-red-400 hover:text-red-300"
+              >
                 <LogOut className="mr-2 size-3.5" />
                 <span>Sign out</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
+
         <Show when="signed-out">
           <div className="flex items-center gap-1.5">
-            <SignInButton mode="modal">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs hover:bg-[var(--list-hover)]"
-              >
-                Sign in
-              </Button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <Button
-                variant="default"
-                size="sm"
-                className="h-7 px-2.5 text-xs bg-[#238636] hover:bg-[#2ea043] text-white"
-              >
-                Sign up
-              </Button>
-            </SignUpButton>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/sign-in")}
+              className="h-7 px-2 text-xs hover:bg-[var(--list-hover)]"
+            >
+              Sign in
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => router.push("/sign-up")}
+              className="h-7 px-2.5 text-xs bg-[#238636] hover:bg-[#2ea043] text-white"
+            >
+              Sign up
+            </Button>
           </div>
         </Show>
 

@@ -203,6 +203,19 @@ export function useEditorWorkspace() {
             headSha: data.repository?.headSha || data.headSha || "",
           });
 
+          // Sync active workspace to Supabase
+          void fetch("/api/workspaces", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              repoOwner: repo.ownerLogin,
+              repoName: repo.name,
+              selectedBranch: repo.defaultBranch,
+            }),
+          }).catch((err) => {
+            console.error("Failed to sync workspace to Supabase:", err);
+          });
+
           const flattenedFiles: RepoFile[] = [];
           const visit = (nodes: RepoFile[]) => {
             nodes.forEach((node) => {

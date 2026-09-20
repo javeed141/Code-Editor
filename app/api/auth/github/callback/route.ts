@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { getOAuthState, setSession } from "@/src/lib/session";
 import { getAuthenticatedUser } from "@/src/lib/github";
+import { upsertUser } from "@/src/lib/supabase/db";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -108,6 +110,30 @@ export async function GET(request: NextRequest) {
       user,
       installationId: resolvedInstallationId,
     });
+
+    // Also sync GitHub details to Supabase if Clerk user is signed in
+    try {
+      const clerkUser = await currentUser();
+      if (clerkUser) {
+        const primaryEmail =
+          clerkUser.emailAddresses?.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ||
+          clerkUser.emailAddresses?.[0]?.emailAddress ||
+          null;
+
+        await upsertUser({
+          id: clerkUser.id,
+          email: primaryEmail,
+          display_name: clerkUser.firstName
+            ? `${clerkUser.firstName} ${clerkUser.lastName || ""}`.trim()
+            : clerkUser.username || user.login,
+          avatar_url: clerkUser.imageUrl || user.avatar_url,
+          github_user_id: user.id,
+          github_username: user.login,
+        });
+      }
+    } catch (dbErr) {
+      console.error("Failed to sync GitHub account to Supabase user:", dbErr);
+    }
 
     return NextResponse.redirect(new URL("/", request.nextUrl.origin));
   } catch (err) {

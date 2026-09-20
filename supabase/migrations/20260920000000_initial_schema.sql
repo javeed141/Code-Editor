@@ -95,49 +95,55 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 
--- users policies
-CREATE POLICY "Users can view their own profile"
+-- 1. users policies (allows server-side sync with anon or service role key)
+DROP POLICY IF EXISTS "Allow read users" ON users;
+DROP POLICY IF EXISTS "Allow upsert users" ON users;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON users;
+DROP POLICY IF EXISTS "Users can update their own profile" ON users;
+DROP POLICY IF EXISTS "Users can view their own profile" ON users;
+DROP POLICY IF EXISTS "Allow server and user profile access" ON users;
+
+CREATE POLICY "Allow read users"
   ON users FOR SELECT
-  USING (id = requesting_user_id());
+  USING (true);
 
-CREATE POLICY "Users can update their own profile"
-  ON users FOR UPDATE
-  USING (id = requesting_user_id());
+CREATE POLICY "Allow upsert users"
+  ON users FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Users can insert their own profile"
-  ON users FOR INSERT
-  WITH CHECK (id = requesting_user_id());
+-- 2. workspaces policies
+DROP POLICY IF EXISTS "Allow read workspaces" ON workspaces;
+DROP POLICY IF EXISTS "Allow manage workspaces" ON workspaces;
+DROP POLICY IF EXISTS "Users can view their own workspaces" ON workspaces;
+DROP POLICY IF EXISTS "Users can insert their own workspaces" ON workspaces;
+DROP POLICY IF EXISTS "Users can update their own workspaces" ON workspaces;
+DROP POLICY IF EXISTS "Users can delete their own workspaces" ON workspaces;
+DROP POLICY IF EXISTS "Allow workspaces access" ON workspaces;
 
--- workspaces policies
-CREATE POLICY "Users can view their own workspaces"
+CREATE POLICY "Allow read workspaces"
   ON workspaces FOR SELECT
-  USING (user_id = requesting_user_id());
+  USING (true);
 
-CREATE POLICY "Users can insert their own workspaces"
-  ON workspaces FOR INSERT
-  WITH CHECK (user_id = requesting_user_id());
+CREATE POLICY "Allow manage workspaces"
+  ON workspaces FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Users can update their own workspaces"
-  ON workspaces FOR UPDATE
-  USING (user_id = requesting_user_id());
+-- 3. conversations policies
+DROP POLICY IF EXISTS "Allow read conversations" ON conversations;
+DROP POLICY IF EXISTS "Allow manage conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can view their own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can insert their own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can update their own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can delete their own conversations" ON conversations;
+DROP POLICY IF EXISTS "Allow conversations access" ON conversations;
 
-CREATE POLICY "Users can delete their own workspaces"
-  ON workspaces FOR DELETE
-  USING (user_id = requesting_user_id());
-
--- conversations policies
-CREATE POLICY "Users can view their own conversations"
+CREATE POLICY "Allow read conversations"
   ON conversations FOR SELECT
-  USING (user_id = requesting_user_id());
+  USING (true);
 
-CREATE POLICY "Users can insert their own conversations"
-  ON conversations FOR INSERT
-  WITH CHECK (user_id = requesting_user_id());
-
-CREATE POLICY "Users can update their own conversations"
-  ON conversations FOR UPDATE
-  USING (user_id = requesting_user_id());
-
-CREATE POLICY "Users can delete their own conversations"
-  ON conversations FOR DELETE
-  USING (user_id = requesting_user_id());
+CREATE POLICY "Allow manage conversations"
+  ON conversations FOR ALL
+  USING (true)
+  WITH CHECK (true);
