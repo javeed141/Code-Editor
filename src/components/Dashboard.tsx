@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import ChatPanel from "@/src/components/ChatPanel";
 import CodeEditor from "@/src/components/CodeEditor";
+import ChangesPanel from "@/src/components/ChangesPanel";
 import CommitDialog from "@/src/components/CommitDialog";
 import type { ChangedFile } from "@/src/components/CommitDialog";
 import EditorStatusBar from "@/src/components/EditorStatusBar";
@@ -110,6 +111,7 @@ export default function Dashboard() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<Record<string, OpenFile>>({});
   const [commandOpen, setCommandOpen] = useState(false);
+  const [changesPanelOpen, setChangesPanelOpen] = useState(false);
   const [commitDialogOpen, setCommitDialogOpen] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   const [indexedDbStatus, setIndexedDbStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -425,11 +427,58 @@ export default function Dashboard() {
             setAuthenticatedUser(data.user);
             fetchRepositories();
           } else {
-            // Unauthenticated fallback
-            setRepositoryTree(mockRepository);
+            // Unauthenticated fallback with IndexedDB draft hydration
+            const demoSnapshotId = getRepositorySnapshotId("demo", "demo-project", "main");
+            const cachedFiles = await getRepositoryFiles(demoSnapshotId);
+            const cachedFilesMap = new Map(cachedFiles.map((f) => [f.path, f]));
+
+            const updateNode = (nodes: RepoFile[]): RepoFile[] => {
+              return nodes.map((node) => {
+                if (node.type === "file") {
+                  const cached = cachedFilesMap.get(node.path);
+                  if (cached && cached.content !== undefined) {
+                    return {
+                      ...node,
+                      content: cached.content,
+                      originalContent: cached.originalContent ?? node.content,
+                    };
+                  }
+                }
+                if (node.children) {
+                  return { ...node, children: updateNode(node.children) };
+                }
+                return node;
+              });
+            };
+
+            const hydratedTree = cachedFiles.length > 0 ? updateNode(mockRepository) : mockRepository;
+            setRepositoryTree(hydratedTree);
+
+            const draftFiles = cachedFiles.filter(
+              (file) =>
+                file.content !== undefined &&
+                file.originalContent !== undefined &&
+                file.content !== file.originalContent,
+            );
+
             const fallbackPath = "src/server.js";
-            const fallbackFile = findFileByPath(mockRepository, fallbackPath);
-            if (fallbackFile?.content !== undefined) {
+            const fallbackFile = findFileByPath(hydratedTree, fallbackPath);
+
+            if (draftFiles.length > 0) {
+              setOpenFiles(
+                Object.fromEntries(
+                  draftFiles.map((file) => [
+                    file.path,
+                    createOpenFile(file.path, file.content ?? "", file.name, {
+                      sha: file.sha,
+                      isBinary: file.isBinary,
+                      originalContent: file.originalContent,
+                    }),
+                  ]),
+                ),
+              );
+              setSelectedPath(draftFiles[0].path);
+            } else if (fallbackFile?.content !== undefined) {
               setOpenFiles({
                 [fallbackPath]: createOpenFile(fallbackPath, fallbackFile.content, fallbackFile.name),
               });
@@ -502,9 +551,13 @@ export default function Dashboard() {
     // Fallback mock repository
     const file = findFileByPath(repositoryTree, path);
     if (!file || file.content === undefined) return;
+    const demoSnapshotId = getRepositorySnapshotId("demo", "demo-project", "main");
+    const cachedFile = await getRepositoryFile(demoSnapshotId, path);
     setOpenFiles((current) => ({
       ...current,
-      [path]: createOpenFile(path, file.content ?? "", file.name),
+      [path]: createOpenFile(path, cachedFile?.content ?? file.content ?? "", file.name, {
+        originalContent: cachedFile?.originalContent ?? file.content,
+      }),
     }));
     setSelectedPath(path);
   }
@@ -552,6 +605,17 @@ export default function Dashboard() {
     });
   }
 
+  const getSnapshotId = useCallback(() => {
+    if (selectedRepository) {
+      return getRepositorySnapshotId(
+        selectedRepository.owner,
+        selectedRepository.repo,
+        selectedRepository.defaultBranch,
+      );
+    }
+    return getRepositorySnapshotId("demo", "demo-project", "main");
+  }, [selectedRepository]);
+
   const handleSave = useCallback(async () => {
     const modifiedFiles = Object.values(openFiles).filter(
       (file) => file.isModified && !file.isBinary && !file.isTooLarge,
@@ -559,16 +623,7 @@ export default function Dashboard() {
 
     if (!modifiedFiles.length) return;
 
-    if (!selectedRepository) {
-      console.error("Unable to save changes: no repository snapshot is selected.");
-      return;
-    }
-
-    const snapshotId = getRepositorySnapshotId(
-      selectedRepository.owner,
-      selectedRepository.repo,
-      selectedRepository.defaultBranch,
-    );
+    const snapshotId = getSnapshotId();
     const savedAt = Date.now();
     setIndexedDbStatus("saving");
 
@@ -590,12 +645,25 @@ export default function Dashboard() {
         })),
       );
       setIndexedDbStatus("saved");
-
     } catch (error) {
       console.error("Failed to save editor changes to IndexedDB:", error);
       setIndexedDbStatus("error");
     }
-  }, [openFiles, selectedRepository]);
+  }, [openFiles, getSnapshotId]);
+
+  // Debounced auto-save effect: save modified files to IndexedDB after 1000ms of inactivity
+  useEffect(() => {
+    const hasModifiedFiles = Object.values(openFiles).some(
+      (file) => file.isModified && !file.isBinary && !file.isTooLarge,
+    );
+    if (!hasModifiedFiles) return;
+
+    const timer = setTimeout(() => {
+      void handleSave();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [openFiles, handleSave]);
 
   async function handleDirectCommit() {
     if (!selectedRepository || changedFiles.length === 0 || isCommitting) return;
@@ -865,7 +933,7 @@ export default function Dashboard() {
         hasModifiedFile={Boolean(selectedFile?.isModified)}
         changedCount={changedFiles.length}
         isCommitting={isCommitting}
-        onSave={handleSave}
+        onOpenChanges={() => setChangesPanelOpen(true)}
         onCommit={handleDirectCommit}
         onCommandOpen={() => setCommandOpen(true)}
         user={authenticatedUser}
@@ -1055,6 +1123,13 @@ export default function Dashboard() {
           </Button>
         </div>
       )}
+
+      <ChangesPanel
+        open={changesPanelOpen}
+        onOpenChange={setChangesPanelOpen}
+        changedFiles={changedFiles}
+        onRevertFile={handleRevertFile}
+      />
 
       {selectedRepository && (
         <CommitDialog

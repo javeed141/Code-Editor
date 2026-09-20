@@ -5,10 +5,10 @@ import {
   ExternalLink,
   FolderGit2,
   GitCommitHorizontal,
+  GitPullRequestDraft,
   Loader2,
   LogOut,
   Moon,
-  Save,
   Sun,
   TerminalSquare,
   User as UserIcon,
@@ -41,7 +41,7 @@ type HeaderProps = {
   hasModifiedFile: boolean;
   changedCount: number;
   isCommitting: boolean;
-  onSave: () => void;
+  onOpenChanges: () => void;
   onCommit: () => void;
   onCommandOpen: () => void;
   user: GitHubUser | null;
@@ -73,7 +73,7 @@ export default function Header({
   hasModifiedFile,
   changedCount,
   isCommitting,
-  onSave,
+  onOpenChanges,
   onCommit,
   onCommandOpen,
   user,
@@ -170,18 +170,22 @@ export default function Header({
           </Button>
         </Tooltip>
 
-        <Tooltip label={hasModifiedFile ? "Save changes" : "No changes to save"}>
-          <Button
-            variant={hasModifiedFile ? "default" : "ghost"}
-            onClick={onSave}
-            disabled={!hasModifiedFile}
-            aria-label="Save changes"
-            className="h-7"
-          >
-            <Save aria-hidden="true" className="size-3.5" />
-            Save
-          </Button>
-        </Tooltip>
+        {changedCount > 0 && (
+          <Tooltip label={`View ${changedCount} changed file${changedCount !== 1 ? "s" : ""}`}>
+            <Button
+              variant="outline"
+              onClick={onOpenChanges}
+              aria-label="View changed files"
+              className="h-7 gap-1.5 border-amber-500/40 text-amber-400 hover:border-amber-500/60 hover:bg-amber-500/10 hover:text-amber-300"
+            >
+              <GitPullRequestDraft aria-hidden="true" className="size-3.5" />
+              Changes
+              <span className="rounded bg-amber-500/20 px-1 py-0 text-[10px] font-bold leading-4 text-amber-300">
+                {changedCount}
+              </span>
+            </Button>
+          </Tooltip>
+        )}
 
         <Tooltip
           label={

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,6 +9,7 @@ import {
   RefreshCcw,
   RotateCcw,
 } from "lucide-react";
+import DiffViewer from "@/src/components/DiffViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -103,64 +104,6 @@ function DiffStatusBadge({ status }: { status: ChangedFile["status"] }) {
     <Badge variant="outline" className={`h-5 px-1.5 text-[10px] font-medium ${className[status]}`}>
       {getStatusLabel(status)}
     </Badge>
-  );
-}
-
-/** Inline Monaco Diff Editor */
-function DiffViewer({
-  original,
-  modified,
-  language,
-}: {
-  original: string;
-  modified: string;
-  language: string;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    let disposed = false;
-    let diffEditor: { dispose: () => void; setModel: (m: unknown) => void } | null = null;
-
-    async function init() {
-      try {
-        const monaco = await import("@monaco-editor/react").then((m) => m.loader.init());
-        if (disposed || !containerRef.current) return;
-
-        diffEditor = monaco.editor.createDiffEditor(containerRef.current, {
-          readOnly: true,
-          renderSideBySide: true,
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          fontSize: 12,
-          lineNumbers: "on",
-          wordWrap: "on",
-          theme: document.documentElement.dataset.theme === "light" ? "vs" : "vs-dark",
-          scrollbar: { vertical: "auto", horizontal: "auto" },
-        }) as { dispose: () => void; setModel: (m: unknown) => void };
-
-        const originalModel = monaco.editor.createModel(original, language);
-        const modifiedModel = monaco.editor.createModel(modified, language);
-        diffEditor.setModel({ original: originalModel, modified: modifiedModel });
-      } catch {
-        // Monaco may fail in SSR — ignore
-      }
-    }
-
-    init();
-    return () => {
-      disposed = true;
-      if (diffEditor) diffEditor.dispose();
-    };
-  }, [original, modified, language]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="h-full min-h-0 w-full overflow-hidden rounded-[3px] border border-[var(--border-color)] bg-[var(--editor-bg)]"
-    />
   );
 }
 
