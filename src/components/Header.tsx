@@ -3,20 +3,24 @@
 import { useEffect, useState } from "react";
 import {
   Check,
+  ChevronDown,
   Code2,
-  Copy,
+  Contrast,
   ExternalLink,
   FolderGit2,
   GitCommitHorizontal,
   GitPullRequestDraft,
-  Globe,
   Loader2,
   LogOut,
+  Moon,
+  Palette,
+  Sun,
   TerminalSquare,
   Unlink,
   User as UserIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/src/lib/cn";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -75,6 +79,48 @@ function GitHubLogo({ className = "size-3.5" }: { className?: string }) {
   );
 }
 
+type ThemeOption = {
+  id: ThemeId;
+  badge?: string;
+};
+
+type ThemeCategory = {
+  category: string;
+  icon: typeof Moon;
+  themes: ThemeOption[];
+};
+
+const THEME_CATEGORIES: ThemeCategory[] = [
+  {
+    category: "Dark Themes",
+    icon: Moon,
+    themes: [
+      { id: "darkModern", badge: "Default" },
+      { id: "dark2026", badge: "2026" },
+      { id: "darkPlus" },
+      { id: "vsDark" },
+    ],
+  },
+  {
+    category: "Light Themes",
+    icon: Sun,
+    themes: [
+      { id: "lightModern", badge: "Default" },
+      { id: "light2026", badge: "2026" },
+      { id: "lightPlus" },
+      { id: "vsLight" },
+    ],
+  },
+  {
+    category: "High Contrast",
+    icon: Contrast,
+    themes: [
+      { id: "hcBlack", badge: "OLED" },
+      { id: "hcLight" },
+    ],
+  },
+];
+
 export default function Header({
   repositoryName,
   hasModifiedFile,
@@ -96,23 +142,11 @@ export default function Header({
   const clerk = useClerk();
   const router = useRouter();
 
-  const [appUrl, setAppUrl] = useState<string>("");
-  const [copiedUrl, setCopiedUrl] = useState(false);
-
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const originUrl = window.location.origin;
-      localStorage.setItem("ai-code-editor-app-url", originUrl);
-      setAppUrl(originUrl);
+      localStorage.setItem("ai-code-editor-app-url", window.location.origin);
     }
   }, []);
-
-  const handleCopyUrl = () => {
-    if (!appUrl) return;
-    navigator.clipboard.writeText(appUrl);
-    setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2000);
-  };
 
   const manageReposUrl = installationId
     ? `https://github.com/settings/installations/${installationId}`
@@ -150,23 +184,6 @@ export default function Header({
           AI Code Editor
         </span>
 
-        {/* Dynamic App URL indicator with 1-click copy */}
-        <Tooltip label={copiedUrl ? "Copied URL to clipboard!" : `Active App URL: ${appUrl} (Click to copy)`}>
-          <button
-            type="button"
-            onClick={handleCopyUrl}
-            className="hidden md:inline-flex items-center gap-1 rounded-[3px] border border-[var(--border-color)] bg-[var(--card-bg)] px-2 py-0.5 text-[10px] text-[var(--text-muted)] hover:text-[var(--foreground)] hover:border-[#007acc] transition-colors cursor-pointer"
-          >
-            <Globe className="size-3 text-[#007acc]" />
-            <span className="font-mono truncate max-w-[170px]">{appUrl || "Detecting..."}</span>
-            {copiedUrl ? (
-              <Check className="size-2.5 text-emerald-400" />
-            ) : (
-              <Copy className="size-2.5 opacity-50" />
-            )}
-          </button>
-        </Tooltip>
-
         {user && hasMultipleRepos && (
           <>
             <Separator orientation="vertical" className="my-1 hidden h-4 sm:block" />
@@ -186,19 +203,159 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-1.5">
-        <label className="hidden items-center gap-1.5 text-[10px] text-[var(--text-muted)] sm:flex">
-          Theme
-          <select
-            aria-label="Color theme"
-            value={theme}
-            onChange={(event) => setTheme(event.target.value as ThemeId)}
-            className="h-7 rounded-[3px] border border-[var(--input-border)] bg-[var(--input-bg)] px-1.5 text-[11px] text-[var(--input-fg)] outline-none focus:border-[var(--accent-color)]"
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="hidden sm:inline-flex h-7 items-center gap-1.5 rounded-[4px] border border-[var(--border-color)] bg-[var(--card-bg)] px-2 py-0.5 text-xs text-[var(--foreground)] hover:bg-[var(--list-hover)] hover:border-[var(--accent-color)]/50 transition-all duration-150 cursor-pointer shadow-2xs"
+            title="Switch color theme"
+            aria-label="Switch color theme"
           >
-            {themeIds.map((themeId) => (
-              <option key={themeId} value={themeId}>{vscodeThemes[themeId].label}</option>
-            ))}
-          </select>
-        </label>
+            {/* Split Swatch Preview (Background & Accent) */}
+            <span
+              className="relative flex size-3 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 shadow-2xs"
+              title={vscodeThemes[theme]?.label}
+            >
+              <span
+                className="absolute inset-y-0 left-0 w-1/2"
+                style={{
+                  backgroundColor:
+                    vscodeThemes[theme]?.workspace["--background"] || "#1E1E1E",
+                }}
+              />
+              <span
+                className="absolute inset-y-0 right-0 w-1/2"
+                style={{
+                  backgroundColor:
+                    vscodeThemes[theme]?.workspace["--accent-color"] || "#007ACC",
+                }}
+              />
+            </span>
+            <Palette className="size-3 text-[var(--text-muted)]" />
+            <span className="font-medium text-[11px] max-w-[115px] truncate tracking-tight">
+              {vscodeThemes[theme]?.label || "Theme"}
+            </span>
+            <ChevronDown className="size-3 text-[var(--text-muted)] opacity-60 ml-0.5" />
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent
+            align="right"
+            className="w-72 p-1.5 max-h-[440px] overflow-y-auto rounded-[6px] border border-[var(--border-color)] bg-[var(--card-bg)] shadow-2xl backdrop-blur-md"
+          >
+            {/* Dropdown Header */}
+            <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-[var(--border-color)] mb-1">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--foreground)]">
+                <Palette className="size-3.5 text-[var(--accent-color)]" />
+                <span>Theme Palette</span>
+              </div>
+              <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                {themeIds.length} themes
+              </span>
+            </div>
+
+            {THEME_CATEGORIES.map((cat, idx) => {
+              const CategoryIcon = cat.icon;
+              return (
+                <div key={cat.category} className={idx > 0 ? "mt-1.5" : ""}>
+                  {idx > 0 && <DropdownMenuSeparator className="my-1" />}
+                  <DropdownMenuLabel className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    <CategoryIcon className="size-3 text-[var(--text-muted)]" />
+                    <span>{cat.category}</span>
+                    <span className="ml-auto text-[9px] font-normal text-[var(--text-muted)]">
+                      {cat.themes.length}
+                    </span>
+                  </DropdownMenuLabel>
+                  <div className="space-y-0.5">
+                    {cat.themes.map(({ id, badge }) => {
+                      const item = vscodeThemes[id];
+                      if (!item) return null;
+                      const isActive = theme === id;
+                      return (
+                        <DropdownMenuItem
+                          key={id}
+                          onClick={() => setTheme(id)}
+                          className={cn(
+                            "group relative flex items-center justify-between gap-2 rounded-[4px] px-2 py-1.5 text-xs transition-colors cursor-pointer",
+                            isActive
+                              ? "bg-[var(--list-active)] text-[var(--list-active-fg)] font-medium shadow-2xs"
+                              : "hover:bg-[var(--list-hover)] text-[var(--foreground)]"
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            {/* Miniature VS Code Window Swatch */}
+                            <div
+                              className={cn(
+                                "relative flex h-4.5 w-7 shrink-0 overflow-hidden rounded-[3px] border shadow-2xs transition-transform duration-150 group-hover:scale-105",
+                                item.isDark ? "border-white/15" : "border-black/15"
+                              )}
+                            >
+                              {/* Mini Sidebar */}
+                              <div
+                                className="w-2 h-full shrink-0 border-r"
+                                style={{
+                                  backgroundColor:
+                                    item.workspace["--sidebar-bg"] || "#181818",
+                                  borderColor:
+                                    item.workspace["--border-color"] || "transparent",
+                                }}
+                              />
+                              {/* Mini Editor Canvas */}
+                              <div
+                                className="flex flex-1 flex-col justify-center gap-0.5 px-0.5"
+                                style={{
+                                  backgroundColor:
+                                    item.workspace["--background"] || "#1E1E1E",
+                                }}
+                              >
+                                <div
+                                  className="h-0.5 w-full rounded-full"
+                                  style={{
+                                    backgroundColor:
+                                      item.workspace["--accent-color"] || "#007acc",
+                                  }}
+                                />
+                                <div
+                                  className="h-0.5 w-3/4 rounded-full opacity-60"
+                                  style={{
+                                    backgroundColor:
+                                      item.workspace["--foreground"] || "#d4d4d4",
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Theme Name */}
+                            <span className="truncate text-xs tracking-tight">
+                              {item.label}
+                            </span>
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {badge && (
+                              <span
+                                className={cn(
+                                  "rounded-[3px] px-1 py-0.2 text-[9px] font-mono uppercase tracking-wider",
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : "bg-[var(--card-header-bg)] text-[var(--text-muted)] border border-[var(--border-color)]"
+                                )}
+                              >
+                                {badge}
+                              </span>
+                            )}
+                            {isActive ? (
+                              <Check className="size-3.5 text-[var(--accent-color)] shrink-0 stroke-[2.5]" />
+                            ) : (
+                              <span className="size-3.5" />
+                            )}
+                          </div>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Tooltip label="Open command menu (⌘K)">
           <Button
