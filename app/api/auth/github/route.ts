@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { setOAuthState } from "@/src/lib/session";
+import { getGitHubCallbackUrl } from "@/src/lib/app-url";
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const appSlug = process.env.GITHUB_APP_SLUG?.trim();
-  const envCallback = process.env.GITHUB_CALLBACK_URL;
-  const isLocalEnv = envCallback?.includes("localhost");
-  const isRemoteRequest = !request.nextUrl.hostname.includes("localhost");
-  const callbackUrl =
-    envCallback && !(isLocalEnv && isRemoteRequest)
-      ? envCallback
-      : new URL("/api/auth/github/callback", request.nextUrl.origin).toString();
+  const callbackUrl = getGitHubCallbackUrl(request);
 
   if (!clientId) {
     return NextResponse.json(

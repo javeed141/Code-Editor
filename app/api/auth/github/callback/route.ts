@@ -3,6 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { getOAuthState, setSession } from "@/src/lib/session";
 import { getAuthenticatedUser } from "@/src/lib/github";
 import { upsertUser } from "@/src/lib/supabase/db";
+import { getAppBaseUrl, getGitHubCallbackUrl } from "@/src/lib/app-url";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -15,17 +16,12 @@ export async function GET(request: NextRequest) {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const appSlug = process.env.GITHUB_APP_SLUG?.trim();
-  const envCallback = process.env.GITHUB_CALLBACK_URL;
-  const isLocalEnv = envCallback?.includes("localhost");
-  const isRemoteRequest = !request.nextUrl.hostname.includes("localhost");
-  const callbackUrl =
-    envCallback && !(isLocalEnv && isRemoteRequest)
-      ? envCallback
-      : new URL("/api/auth/github/callback", request.nextUrl.origin).toString();
+  const baseUrl = getAppBaseUrl(request);
+  const callbackUrl = getGitHubCallbackUrl(request);
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
-      new URL("/?auth_error=server_configuration_missing", request.nextUrl.origin),
+      new URL("/?auth_error=server_configuration_missing", baseUrl),
     );
   }
 
@@ -65,13 +61,13 @@ export async function GET(request: NextRequest) {
   const savedState = await getOAuthState();
   if (!realState || !savedState || realState !== savedState) {
     return NextResponse.redirect(
-      new URL("/?auth_error=invalid_state", request.nextUrl.origin),
+      new URL("/?auth_error=invalid_state", baseUrl),
     );
   }
 
   if (!code) {
     return NextResponse.redirect(
-      new URL("/?auth_error=missing_code", request.nextUrl.origin),
+      new URL("/?auth_error=missing_code", baseUrl),
     );
   }
 
@@ -98,7 +94,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/?auth_error=${encodeURIComponent(tokenData.error_description || "token_exchange_failed")}`,
-          request.nextUrl.origin,
+          baseUrl,
         ),
       );
     }
@@ -139,11 +135,11 @@ export async function GET(request: NextRequest) {
       console.error("Failed to sync GitHub account to Supabase user:", dbErr);
     }
 
-    return NextResponse.redirect(new URL("/", request.nextUrl.origin));
+    return NextResponse.redirect(new URL("/", baseUrl));
   } catch (err) {
     console.error("Error during GitHub OAuth callback:", err);
     return NextResponse.redirect(
-      new URL("/?auth_error=oauth_processing_error", request.nextUrl.origin),
+      new URL("/?auth_error=oauth_processing_error", baseUrl),
     );
   }
 }
