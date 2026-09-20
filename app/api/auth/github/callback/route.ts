@@ -104,11 +104,23 @@ export async function GET(request: NextRequest) {
     // Fetch the authenticated user's profile
     const user = await getAuthenticatedUser(accessToken);
 
+    // Discover installationId if not already parsed
+    let finalInstallationId = resolvedInstallationId;
+    if (!finalInstallationId && appSlug) {
+      try {
+        const { listInstallationRepositories } = await import("@/src/lib/github");
+        const installData = await listInstallationRepositories(accessToken);
+        finalInstallationId = installData.installationId;
+      } catch (err) {
+        console.warn("Could not discover installationId from user:", err);
+      }
+    }
+
     // Save the full session (accessToken + user + installationId)
     await setSession({
       accessToken,
       user,
-      installationId: resolvedInstallationId,
+      installationId: finalInstallationId,
     });
 
     // Also sync GitHub details to Supabase if Clerk user is signed in
