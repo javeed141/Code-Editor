@@ -27,11 +27,19 @@ export function Tabs({ defaultValue = "", value: controlledValue, onValueChange,
   );
 }
 
-export function TabsList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function TabsList({ className, onWheel, ...props }: HTMLAttributes<HTMLDivElement>) {
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0) {
+      e.currentTarget.scrollLeft += e.deltaY;
+    }
+    onWheel?.(e);
+  };
+
   return (
     <div
+      onWheel={handleWheel}
       className={cn(
-        "inline-flex items-stretch overflow-x-auto bg-[var(--tabbar-bg)]",
+        "inline-flex items-stretch overflow-x-auto no-scrollbar bg-[var(--tabbar-bg)]",
         className,
       )}
       {...props}
@@ -53,7 +61,7 @@ export function TabsTrigger({ className, value, children, ...props }: TabsTrigge
       className={cn(
         "group relative inline-flex h-9 items-center gap-2 border-r border-[var(--border-color)] px-3 text-xs transition-colors cursor-pointer select-none",
         active
-          ? "bg-[var(--tab-active-bg)] text-[var(--tab-active-fg)] font-medium border-t-2 border-t-[#007acc]"
+          ? "bg-[var(--tab-active-bg)] text-[var(--tab-active-fg)] font-medium border-b-2 border-b-[#007acc]"
           : "bg-[var(--tab-inactive-bg)] text-[var(--tab-inactive-fg)] hover:bg-[var(--tab-active-bg)]/40 hover:text-[var(--foreground)]",
         className,
       )}

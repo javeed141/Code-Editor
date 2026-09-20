@@ -20,6 +20,7 @@ type FileExplorerProps = {
   onFileSelect: (path: string) => void;
   isAuthenticated: boolean;
   selectedRepository: SelectedRepository | null;
+  authLoading?: boolean;
   repoLoading: boolean;
   onRefresh?: () => void;
   onOpenRepoModal?: () => void;
@@ -108,6 +109,7 @@ export default function FileExplorer({
   onFileSelect,
   isAuthenticated,
   selectedRepository,
+  authLoading,
   repoLoading,
   onRefresh,
   onOpenRepoModal,
@@ -175,14 +177,25 @@ export default function FileExplorer({
       <Separator />
 
       <ScrollArea className="flex-1 px-1 py-1.5">
-        {repoLoading ? (
-          <div className="space-y-2 px-3 py-4">
-            <p className="text-xs text-[var(--text-muted)]">Loading files from GitHub...</p>
-            <div className="space-y-1.5 pt-1">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-44" />
+        {authLoading || repoLoading ? (
+          <div className="space-y-3 px-3 py-4">
+            <div className="flex items-center gap-2">
+              <Skeleton className="size-3.5 rounded-[2px]" />
+              <Skeleton className="h-3.5 w-28" />
+            </div>
+            <div className="space-y-2 pt-0.5 pl-4">
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-3.5 w-36" />
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-3.5 w-32" />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Skeleton className="size-3.5 rounded-[2px]" />
+              <Skeleton className="h-3.5 w-20" />
+            </div>
+            <div className="space-y-2 pt-0.5 pl-4">
+              <Skeleton className="h-3.5 w-28" />
+              <Skeleton className="h-3.5 w-16" />
             </div>
           </div>
         ) : !isAuthenticated && !selectedRepository ? (

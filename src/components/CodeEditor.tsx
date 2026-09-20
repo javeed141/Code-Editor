@@ -83,7 +83,7 @@ export default function CodeEditor({ value, language, path, onChange }: CodeEdit
           fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace",
           wordWrap: "off",
           scrollBeyondLastLine: false,
-          padding: { top: 12, bottom: 12 },
+          padding: { top: 8, bottom: 8 },
           renderLineHighlight: "line",
           smoothScrolling: true,
           tabSize: 2,

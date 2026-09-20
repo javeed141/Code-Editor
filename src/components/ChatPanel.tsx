@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Bot, Circle, Send } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { Badge } from "@/src/components/ui/badge";
@@ -11,7 +11,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { Textarea } from "@/src/components/ui/textarea";
 
 type ChatMessage = {
-  id: number;
+  id: string | number;
   role: "user" | "assistant";
   content: string;
 };
@@ -26,6 +26,12 @@ type Workspace = {
     language: string;
     isModified: boolean;
   }>;
+};
+
+const DEFAULT_WELCOME: ChatMessage = {
+  id: "welcome",
+  role: "assistant",
+  content: "Hello! I am your AI assistant. How can I help you with this project?",
 };
 
 export default function ChatPanel({ workspace }: { workspace: Workspace }) {

@@ -91,5 +91,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "The AI provider returned an empty response." }, { status: 502 });
   }
 
+  // Gracefully ensure conversation session exists in Supabase if authenticated
+  try {
+    const { getCurrentUser } = await import("@/src/lib/auth-user");
+    const { getOrCreateConversation } = await import("@/src/lib/supabase/db");
+    const user = await getCurrentUser();
+    if (user) {
+      await getOrCreateConversation(user.id, workspace.repository, workspace.branch);
+    }
+  } catch (dbError) {
+    console.warn("Could not sync conversation in Supabase:", dbError);
+  }
+
   return NextResponse.json({ response: text });
 }
+

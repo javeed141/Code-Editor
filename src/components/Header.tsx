@@ -30,10 +30,12 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Separator } from "@/src/components/ui/separator";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import { useTheme } from "@/src/context/ThemeContext";
 import { themeIds, vscodeThemes, type ThemeId } from "@/src/lib/vscodeThemes";
 import type { GitHubUser, SelectedRepository } from "@/src/types/github";
+import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
 
 type HeaderProps = {
   repositoryName: string;
@@ -225,8 +227,9 @@ export default function Header({
 
         {/* GitHub Authentication Button or User Menu */}
         {authLoading ? (
-          <div className="flex h-7 w-20 items-center justify-center">
-            <span className="size-3.5 animate-spin rounded-full border-2 border-[var(--border-color)] border-t-[#007acc]" />
+          <div className="flex h-7 items-center gap-1.5 rounded-[3px] border border-[var(--border-color)] px-2 py-0.5">
+            <Skeleton className="size-4 rounded-full" />
+            <Skeleton className="h-3 w-16" />
           </div>
         ) : user ? (
           <DropdownMenu>
@@ -276,17 +279,46 @@ export default function Header({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        ) : (
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onSignIn}
-            className="h-7 gap-1.5 bg-[#24292e] text-white hover:bg-[#2f363d] dark:bg-[#238636] dark:hover:bg-[#2ea043]"
-          >
-            <GitHubLogo className="size-3.5" />
-            <span>Sign in with GitHub</span>
-          </Button>
-        )}
+        ) : null}
+        <Show when="signed-out">
+          <div className="flex items-center gap-1.5">
+            <SignInButton mode="modal">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs hover:bg-[var(--list-hover)]"
+              >
+                Sign in
+              </Button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 px-2.5 text-xs bg-[#238636] hover:bg-[#2ea043] text-white"
+              >
+                Sign up
+              </Button>
+            </SignUpButton>
+          </div>
+        </Show>
+
+        <Show when="signed-in">
+          <div className="flex items-center gap-2">
+            {!user && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSignIn}
+                className="h-7 gap-1.5 px-2.5 text-xs font-medium border-[#30363d] bg-[#24292e] text-white hover:bg-[#2f363d] dark:bg-[#238636] dark:hover:bg-[#2ea043]"
+              >
+                <GitHubLogo className="size-3.5" />
+                <span>Connect GitHub</span>
+              </Button>
+            )}
+            <UserButton />
+          </div>
+        </Show>
       </div>
     </header>
   );

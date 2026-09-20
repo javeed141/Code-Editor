@@ -83,6 +83,32 @@ body {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  height: 3px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color);
+}
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
 ::selection {
   background: var(--selection);
 }
