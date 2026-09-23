@@ -66,16 +66,36 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveRepositorySnapshot(snapshot: RepositorySnapshot): Promise<void> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(REPOSITORY_SNAPSHOTS_STORE, "readwrite");
-    const store = transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE);
-    store.put(snapshot);
+function runTransaction(
+  stores: string | string[],
+  mode: IDBTransactionMode,
+  operation: (transaction: IDBTransaction) => void,
+): Promise<void> {
+  return openDatabase().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const transaction = db.transaction(stores, mode);
+        operation(transaction);
 
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Failed to save repository snapshot."));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Failed to save repository snapshot."));
+        transaction.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        transaction.onerror = () => {
+          db.close();
+          reject(transaction.error ?? new Error("IndexedDB transaction failed."));
+        };
+        transaction.onabort = () => {
+          db.close();
+          reject(transaction.error ?? new Error("IndexedDB transaction was aborted."));
+        };
+      }),
+  );
+}
+
+export async function saveRepositorySnapshot(snapshot: RepositorySnapshot): Promise<void> {
+  return runTransaction(REPOSITORY_SNAPSHOTS_STORE, "readwrite", (transaction) => {
+    transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE).put(snapshot);
   });
 }
 
@@ -86,26 +106,25 @@ export async function getRepositorySnapshot(snapshotId: string): Promise<Reposit
     const store = transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE);
     const request = store.get(snapshotId);
 
-    request.onsuccess = () => resolve((request.result as RepositorySnapshot | undefined) ?? null);
-    request.onerror = () => reject(request.error ?? new Error("Failed to read repository snapshot."));
+    transaction.oncomplete = () => {
+      db.close();
+      resolve((request.result as RepositorySnapshot | undefined) ?? null);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error ?? new Error("Failed to read repository snapshot."));
+    };
   });
 }
 
 export async function saveRepositoryFiles(snapshotId: string, files: StoredRepoFile[]): Promise<void> {
   if (!files.length) return;
 
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(REPOSITORY_FILES_STORE, "readwrite");
+  return runTransaction(REPOSITORY_FILES_STORE, "readwrite", (transaction) => {
     const store = transaction.objectStore(REPOSITORY_FILES_STORE);
-
     for (const file of files) {
       store.put({ ...file, snapshotId });
     }
-
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Failed to save repository files."));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Failed to save repository files."));
   });
 }
 
@@ -117,8 +136,14 @@ export async function getRepositoryFiles(snapshotId: string): Promise<StoredRepo
     const index = store.index("snapshotId");
     const request = index.getAll(snapshotId);
 
-    request.onsuccess = () => resolve((request.result as StoredRepoFile[]) ?? []);
-    request.onerror = () => reject(request.error ?? new Error("Failed to list repository files."));
+    transaction.oncomplete = () => {
+      db.close();
+      resolve((request.result as StoredRepoFile[]) ?? []);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error ?? new Error("Failed to list repository files."));
+    };
   });
 }
 
@@ -129,66 +154,50 @@ export async function getRepositoryFile(snapshotId: string, path: string): Promi
     const store = transaction.objectStore(REPOSITORY_FILES_STORE);
     const request = store.get(`${snapshotId}:${path}`);
 
-    request.onsuccess = () => resolve((request.result as StoredRepoFile | undefined) ?? null);
-    request.onerror = () => reject(request.error ?? new Error("Failed to read repository file."));
+    transaction.oncomplete = () => {
+      db.close();
+      resolve((request.result as StoredRepoFile | undefined) ?? null);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error ?? new Error("Failed to read repository file."));
+    };
   });
 }
 
 export async function deleteRepositorySnapshot(snapshotId: string): Promise<void> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([REPOSITORY_SNAPSHOTS_STORE, REPOSITORY_FILES_STORE], "readwrite");
-    const snapshotsStore = transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE);
-    const filesStore = transaction.objectStore(REPOSITORY_FILES_STORE);
-    const index = filesStore.index("snapshotId");
+  return runTransaction(
+    [REPOSITORY_SNAPSHOTS_STORE, REPOSITORY_FILES_STORE],
+    "readwrite",
+    (transaction) => {
+      const snapshotsStore = transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE);
+      const filesStore = transaction.objectStore(REPOSITORY_FILES_STORE);
+      const index = filesStore.index("snapshotId");
 
-    const deleteSnapshotRequest = snapshotsStore.delete(snapshotId);
-    const fileRequest = index.openCursor(IDBKeyRange.only(snapshotId));
+      snapshotsStore.delete(snapshotId);
+      const fileRequest = index.openCursor(IDBKeyRange.only(snapshotId));
 
-    fileRequest.onsuccess = () => {
-      const cursor = fileRequest.result;
-      if (cursor) {
-        filesStore.delete(cursor.primaryKey);
-        cursor.continue();
-      }
-    };
-
-    deleteSnapshotRequest.onsuccess = () => resolve();
-    deleteSnapshotRequest.onerror = () => reject(deleteSnapshotRequest.error ?? new Error("Failed to delete repository snapshot."));
-    transaction.onerror = () => reject(transaction.error ?? new Error("Failed to delete repository snapshot."));
-  });
+      fileRequest.onsuccess = () => {
+        const cursor = fileRequest.result;
+        if (cursor) {
+          filesStore.delete(cursor.primaryKey);
+          cursor.continue();
+        }
+      };
+    },
+  );
 }
 
 export async function clearRepositoryCache(): Promise<void> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([REPOSITORY_SNAPSHOTS_STORE, REPOSITORY_FILES_STORE], "readwrite");
+  return runTransaction(
+    [REPOSITORY_SNAPSHOTS_STORE, REPOSITORY_FILES_STORE],
+    "readwrite",
+    (transaction) => {
+      const snapshotsStore = transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE);
+      const filesStore = transaction.objectStore(REPOSITORY_FILES_STORE);
 
-    const snapshotsStore = transaction.objectStore(REPOSITORY_SNAPSHOTS_STORE);
-    const filesStore = transaction.objectStore(REPOSITORY_FILES_STORE);
-
-    const snapshotsRequest = snapshotsStore.clear();
-    const filesRequest = filesStore.clear();
-
-    let pending = 2;
-    let failed = false;
-
-    function finalize() {
-      pending -= 1;
-      if (!failed && pending === 0) {
-        resolve();
-      }
-    }
-
-    snapshotsRequest.onsuccess = finalize;
-    filesRequest.onsuccess = finalize;
-    snapshotsRequest.onerror = () => {
-      failed = true;
-      reject(snapshotsRequest.error ?? new Error("Failed to clear repository snapshot cache."));
-    };
-    filesRequest.onerror = () => {
-      failed = true;
-      reject(filesRequest.error ?? new Error("Failed to clear repository files cache."));
-    };
-  });
+      snapshotsStore.clear();
+      filesStore.clear();
+    },
+  );
 }

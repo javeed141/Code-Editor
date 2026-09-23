@@ -12,8 +12,66 @@ import {
 import { buildFileTree } from "@/src/lib/github";
 import { findFileByPath, getLanguageFromPath } from "@/src/lib/utils";
 import type { OpenFile, RepoFile } from "@/src/types/editor";
-import type { Repository, SelectedRepository } from "@/src/types/github";
+import type { BranchSnapshotFile, Repository, SelectedRepository } from "@/src/types/github";
 import { createOpenFile, SELECTED_REPOSITORY_STORAGE_KEY } from "../dashboardUtils";
+
+type OpenableFile = Pick<RepoFile, "path" | "name" | "content" | "originalContent" | "sha" | "isBinary">;
+
+function isDraft(file: OpenableFile) {
+  return (
+    file.content !== undefined &&
+    file.originalContent !== undefined &&
+    file.content !== file.originalContent
+  );
+}
+
+function getFilesToOpen(files: OpenableFile[]) {
+  const drafts = files.filter(isDraft);
+  const readme = files.find((file) => file.name.toLowerCase() === "readme.md");
+  return drafts.length > 0 ? drafts : readme ? [readme] : [];
+}
+
+function createOpenFiles(files: OpenableFile[]) {
+  return Object.fromEntries(
+    files.map((file) => [
+      file.path,
+      createOpenFile(file.path, file.content ?? "", file.name, {
+        sha: file.sha,
+        isBinary: file.isBinary,
+        originalContent: file.originalContent,
+      }),
+    ]),
+  );
+}
+
+function mergeSnapshotFile(
+  snapshotId: string,
+  remoteFile: BranchSnapshotFile,
+  cachedFile?: {
+    content?: string;
+    originalContent?: string;
+    sha?: string;
+  },
+) {
+  const keepDraft = cachedFile !== undefined && isDraft(cachedFile);
+  const content = keepDraft ? cachedFile.content : remoteFile.content;
+  const originalContent = keepDraft ? cachedFile.originalContent : remoteFile.content;
+
+  return {
+    id: `${snapshotId}:${remoteFile.path}`,
+    snapshotId,
+    path: remoteFile.path,
+    name: remoteFile.name,
+    type: "file" as const,
+    content,
+    originalContent,
+    sha: keepDraft ? cachedFile.sha : remoteFile.sha,
+    size: remoteFile.size,
+    language: remoteFile.language,
+    isBinary: remoteFile.isBinary,
+    updatedAt: Date.now(),
+  };
+}
 
 export function useEditorWorkspace() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -76,28 +134,10 @@ export function useEditorWorkspace() {
       headSha: cachedSnapshot.headSha,
     });
 
-    const draftFiles = cachedFiles.filter(
-      (file) =>
-        file.content !== undefined &&
-        file.originalContent !== undefined &&
-        file.content !== file.originalContent,
-    );
-    const readme = cachedFiles.find((file) => file.name.toLowerCase() === "readme.md");
-    const filesToOpen = draftFiles.length > 0 ? draftFiles : readme ? [readme] : [];
+    const filesToOpen = getFilesToOpen(cachedFiles);
 
     if (filesToOpen.length > 0) {
-      setOpenFiles(
-        Object.fromEntries(
-          filesToOpen.map((file) => [
-            file.path,
-            createOpenFile(file.path, file.content ?? "", file.name, {
-              sha: file.sha,
-              isBinary: file.isBinary,
-              originalContent: file.originalContent,
-            }),
-          ]),
-        ),
-      );
+      setOpenFiles(createOpenFiles(filesToOpen));
       setSelectedPath(filesToOpen[0].path);
     }
 
@@ -140,7 +180,7 @@ export function useEditorWorkspace() {
           const data = await res.json();
           if (requestId !== selectionRequestRef.current) return;
           const snapshotTree: RepoFile[] = Array.isArray(data.tree) ? data.tree : [];
-          const files = Array.isArray(data.files) ? data.files : [];
+          const files: BranchSnapshotFile[] = Array.isArray(data.files) ? data.files : [];
           const snapshotId = getRepositorySnapshotId(repo.ownerLogin, repo.name, repo.defaultBranch);
           const cachedFiles = await getRepositoryFiles(snapshotId);
           const cachedFilesByPathForHydration = new Map(cachedFiles.map((file) => [file.path, file]));
@@ -156,41 +196,21 @@ export function useEditorWorkspace() {
 
           await saveRepositoryFiles(
             snapshotId,
-            files.map((file: { path: string; name: string; content: string; sha?: string; size?: number; language?: string; isBinary?: boolean }) => {
-              const cachedFile = cachedFilesByPathForHydration.get(file.path);
-              const hasDraft =
-                cachedFile?.originalContent !== undefined &&
-                cachedFile.content !== cachedFile.originalContent;
-
-              return {
-                id: `${snapshotId}:${file.path}`,
-                snapshotId,
-                path: file.path,
-                name: file.name,
-                type: "file" as const,
-                content: hasDraft ? cachedFile.content : file.content,
-                originalContent: hasDraft ? cachedFile.originalContent : file.content,
-                sha: hasDraft ? cachedFile.sha : file.sha,
-                size: file.size,
-                language: file.language,
-                isBinary: file.isBinary,
-                updatedAt: Date.now(),
-              };
-            }),
+            files.map((file) =>
+              mergeSnapshotFile(snapshotId, file, cachedFilesByPathForHydration.get(file.path)),
+            ),
           );
 
-          const persistedFiles = files.map((file: { path: string; name: string; content: string; sha?: string; size?: number; language?: string; isBinary?: boolean }) => {
+          const persistedFiles = files.map((file) => {
             const cachedFile = cachedFilesByPathForHydration.get(file.path);
-            const hasDraft =
-              cachedFile?.originalContent !== undefined &&
-              cachedFile.content !== cachedFile.originalContent;
+            const persistedFile = mergeSnapshotFile(snapshotId, file, cachedFile);
             return {
               path: file.path,
               type: "blob",
-              sha: hasDraft ? cachedFile.sha : file.sha,
+              sha: persistedFile.sha,
               size: file.size,
-              content: hasDraft ? cachedFile.content : file.content,
-              originalContent: hasDraft ? cachedFile.originalContent : file.content,
+              content: persistedFile.content,
+              originalContent: persistedFile.originalContent,
               language: file.language,
               isBinary: file.isBinary,
             };
@@ -229,30 +249,10 @@ export function useEditorWorkspace() {
           };
           visit(persistedTree);
 
-          const readme = flattenedFiles.find(
-            (file) => file.type === "file" && file.name.toLowerCase() === "readme.md",
-          );
-          const draftFiles = flattenedFiles.filter(
-            (file) =>
-              file.content !== undefined &&
-              file.originalContent !== undefined &&
-              file.content !== file.originalContent,
-          );
-          const filesToOpen = draftFiles.length > 0 ? draftFiles : readme ? [readme] : [];
+          const filesToOpen = getFilesToOpen(flattenedFiles);
 
           if (filesToOpen.length > 0) {
-            setOpenFiles(
-              Object.fromEntries(
-                filesToOpen.map((file) => [
-                  file.path,
-                  createOpenFile(file.path, file.content ?? "", file.name, {
-                    sha: file.sha,
-                    isBinary: file.isBinary,
-                    originalContent: file.originalContent,
-                  }),
-                ]),
-              ),
-            );
+            setOpenFiles(createOpenFiles(filesToOpen));
             setSelectedPath(filesToOpen[0].path);
           }
         } else {
@@ -743,4 +743,3 @@ export function useEditorWorkspace() {
     resetWorkspace,
   };
 }
-
