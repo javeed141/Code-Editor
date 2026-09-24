@@ -3,7 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { getOAuthState, setSession } from "@/src/lib/session";
 import { getAuthenticatedUser } from "@/src/lib/github";
 import { upsertUser } from "@/src/lib/supabase/db";
-import { getAppBaseUrl } from "@/src/lib/app-url";
+import { getAppBaseUrl, getGitHubCallbackUrl } from "@/src/lib/app-url";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const appSlug = process.env.GITHUB_APP_SLUG?.trim();
   const baseUrl = getAppBaseUrl(request);
+  const callbackUrl = getGitHubCallbackUrl(request);
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
     // Start OAuth authorization (Step 2)
     const authUrl = new URL("https://github.com/login/oauth/authorize");
     authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", callbackUrl);
     // We re-use the same state, but encode installation_id alongside it
     authUrl.searchParams.set("state", `${savedState}|${installationId}`);
     return NextResponse.redirect(authUrl.toString());
@@ -81,6 +83,7 @@ export async function GET(request: NextRequest) {
         client_id: clientId,
         client_secret: clientSecret,
         code,
+        redirect_uri: callbackUrl,
       }),
     });
 
