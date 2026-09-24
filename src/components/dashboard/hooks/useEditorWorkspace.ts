@@ -17,7 +17,7 @@ import { createOpenFile, SELECTED_REPOSITORY_STORAGE_KEY } from "../dashboardUti
 
 type OpenableFile = Pick<RepoFile, "path" | "name" | "content" | "originalContent" | "sha" | "isBinary">;
 
-function isDraft(file: OpenableFile) {
+function isDraft(file: { content?: string; originalContent?: string }) {
   return (
     file.content !== undefined &&
     file.originalContent !== undefined &&
