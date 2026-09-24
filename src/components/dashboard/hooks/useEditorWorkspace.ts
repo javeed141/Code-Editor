@@ -76,6 +76,8 @@ function mergeSnapshotFile(
 export function useEditorWorkspace() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [reposAuthExpired, setReposAuthExpired] = useState(false);
   const [installationId, setInstallationId] = useState<number | undefined>(undefined);
   const [selectedRepository, setSelectedRepository] = useState<SelectedRepository | null>(null);
   const [repositoryTree, setRepositoryTree] = useState<RepoFile[]>([]);
@@ -276,6 +278,8 @@ export function useEditorWorkspace() {
   // Fetch repositories and auto-select if stored or only 1 is granted by the user on GitHub
   const fetchRepositories = useCallback(async () => {
     setReposLoading(true);
+    setReposError(null);
+    setReposAuthExpired(false);
     try {
       const res = await fetch("/api/github/repos");
       if (res.ok) {
@@ -310,9 +314,16 @@ export function useEditorWorkspace() {
         if (repos.length === 1) {
           handleSelectRepository(repos[0]);
         }
+      } else {
+        const data = await res.json().catch(() => null);
+        setRepositories([]);
+        setReposError(data?.error || "Unable to load repositories from GitHub.");
+        setReposAuthExpired(Boolean(data?.reauthenticate));
       }
     } catch (err) {
       console.error("Failed to load repositories:", err);
+      setRepositories([]);
+      setReposError("Unable to reach GitHub. Check your connection and try again.");
     } finally {
       setReposLoading(false);
     }
@@ -713,6 +724,8 @@ export function useEditorWorkspace() {
   return {
     repositories,
     reposLoading,
+    reposError,
+    reposAuthExpired,
     installationId,
     selectedRepository,
     setSelectedRepository,

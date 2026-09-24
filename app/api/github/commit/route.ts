@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
     const { repositories } = await listInstallationRepositories(
       session.accessToken,
       session.installationId,
+      process.env.GITHUB_APP_SLUG?.trim(),
     );
     const hasAccess = repositories.some(
       (r) => r.ownerLogin === owner && r.name === repo,

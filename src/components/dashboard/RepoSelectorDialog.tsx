@@ -25,9 +25,13 @@ interface RepoSelectorDialogProps {
   onOpenChange: (open: boolean) => void;
   repositories: Repository[];
   reposLoading: boolean;
+  reposError: string | null;
+  reposAuthExpired: boolean;
   selectedRepository: SelectedRepository | null;
   installationId?: number;
   onSelectRepository: (repo: Repository) => void;
+  onRetry: () => void;
+  onReconnect: () => void;
 }
 
 export function RepoSelectorDialog({
@@ -35,9 +39,13 @@ export function RepoSelectorDialog({
   onOpenChange,
   repositories,
   reposLoading,
+  reposError,
+  reposAuthExpired,
   selectedRepository,
   installationId,
   onSelectRepository,
+  onRetry,
+  onReconnect,
 }: RepoSelectorDialogProps) {
   const [repositoryQuery, setRepositoryQuery] = useState("");
 
@@ -122,8 +130,20 @@ export function RepoSelectorDialog({
                   <Skeleton className="h-3.5 w-12" />
                 </div>
               </div>
+            ) : reposError ? (
+              <div className="space-y-3 px-3 py-6 text-center">
+                <p className="text-sm text-[var(--text-muted)]">{reposError}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={reposAuthExpired ? onReconnect : onRetry}
+                >
+                  {reposAuthExpired ? "Reconnect GitHub" : "Try again"}
+                </Button>
+              </div>
             ) : repositories.length === 0 ? (
-              <CommandEmpty>No repositories found.</CommandEmpty>
+              <CommandEmpty>No repositories found. Check this app&apos;s repository access in GitHub, then try again.</CommandEmpty>
             ) : filteredRepositories.length === 0 ? (
               <CommandEmpty>
                 No repositories match <span className="font-medium text-[var(--foreground)]">“{repositoryQuery}”</span>.
@@ -199,4 +219,3 @@ export function RepoSelectorDialog({
     </Dialog>
   );
 }
-

@@ -49,20 +49,23 @@ export async function listRepositories(accessToken: string): Promise<Repository[
 export async function listInstallationRepositories(
   accessToken: string,
   installationId?: number,
+  appSlug?: string,
 ): Promise<{ repositories: Repository[]; installationId?: number }> {
   const octokit = getAuthenticatedOctokit(accessToken);
   let targetInstallationId = installationId;
 
-  // If installationId is not passed, discover it from the user's installations
-  if (!targetInstallationId) {
-    try {
-      const { data: installations } = await octokit.rest.apps.listInstallationsForAuthenticatedUser();
-      if (installations.installations.length > 0) {
-        targetInstallationId = installations.installations[0].id;
-      }
-    } catch {
-      // User may be using an OAuth App or has no installations
-    }
+  // Match the configured GitHub App instead of blindly using the first app
+  // installed on the account. Accounts can have several app installations.
+  try {
+    const { data } = await octokit.rest.apps.listInstallationsForAuthenticatedUser({ per_page: 100 });
+    const installations = data.installations;
+    const matchingInstallation = appSlug
+      ? installations.find((installation) => installation.app_slug === appSlug)
+      : undefined;
+
+    targetInstallationId = matchingInstallation?.id ?? targetInstallationId ?? installations[0]?.id;
+  } catch {
+    // User may be using an OAuth App or has no installations.
   }
 
   // If a GitHub App installation is found, query only the permitted repositories

@@ -32,6 +32,11 @@ export default function Dashboard() {
     onLogoutCleanup: workspace.resetWorkspace,
   });
 
+  const openRepositoryPicker = () => {
+    setRepoModalOpen(true);
+    void workspace.fetchRepositories();
+  };
+
   // Check current session on mount and bootstrap workspace
   useEffect(() => {
     if (bootstrapStartedRef.current) return;
@@ -79,7 +84,7 @@ export default function Dashboard() {
         selectedRepository={workspace.selectedRepository}
         hasMultipleRepos={workspace.repositories.length > 1}
         installationId={workspace.installationId}
-        onOpenRepoModal={() => setRepoModalOpen(true)}
+        onOpenRepoModal={openRepositoryPicker}
         onLogout={auth.handleLogout}
         onSignIn={auth.handleGitHubSignIn}
       />
@@ -96,7 +101,7 @@ export default function Dashboard() {
             authLoading={auth.authLoading}
             repoLoading={workspace.treeLoading}
             onRefresh={workspace.handleRefreshTree}
-            onOpenRepoModal={() => setRepoModalOpen(true)}
+            onOpenRepoModal={openRepositoryPicker}
             onSignIn={auth.handleGitHubSignIn}
             changedFiles={workspace.changedFiles}
           />
@@ -178,7 +183,7 @@ export default function Dashboard() {
         onOpenChange={setCommandOpen}
         hasMultipleRepos={workspace.repositories.length > 1}
         openFiles={workspace.openFiles}
-        onOpenRepoModal={() => setRepoModalOpen(true)}
+        onOpenRepoModal={openRepositoryPicker}
         onSelectPath={workspace.setSelectedPath}
       />
 
@@ -187,9 +192,13 @@ export default function Dashboard() {
         onOpenChange={setRepoModalOpen}
         repositories={workspace.repositories}
         reposLoading={workspace.reposLoading}
+        reposError={workspace.reposError}
+        reposAuthExpired={workspace.reposAuthExpired}
         selectedRepository={workspace.selectedRepository}
         installationId={workspace.installationId}
         onSelectRepository={workspace.handleSelectRepository}
+        onRetry={workspace.fetchRepositories}
+        onReconnect={auth.handleGitHubSignIn}
       />
     </main>
   );

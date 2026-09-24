@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   try {
     const workspace = body.workspace;
     const result = streamText({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq("openai/gpt-oss-20b"),
       system: `${SYSTEM_PROMPT}
 
 Repository: ${workspace.repository}
