@@ -3,11 +3,11 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { marked } from "marked";
 import {
   AlertCircle,
   Bot,
   ChevronRight,
-  Circle,
   FileCode2,
   FolderGit2,
   Loader2,
@@ -16,9 +16,8 @@ import {
   User,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { Card, CardContent } from "@/src/components/ui/card";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Separator } from "@/src/components/ui/separator";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -36,23 +35,41 @@ type Workspace = {
   }>;
 };
 
-// Collapsible Thought block (Codex / Claude Code style)
+// Markdown Content Renderer
+function MarkdownContent({ content }: { content: string }) {
+  const html = useMemo(() => {
+    try {
+      return marked.parse(content, { breaks: true, gfm: true }) as string;
+    } catch {
+      return content;
+    }
+  }, [content]);
+
+  return (
+    <div
+      className="prose prose-invert prose-xs max-w-none text-xs leading-relaxed text-[var(--foreground)] [&_table]:w-full [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-white/20 [&_th]:p-1.5 [&_th]:bg-white/[0.04] [&_th]:text-left [&_td]:border [&_td]:border-white/10 [&_td]:p-1.5 [&_pre]:bg-black/50 [&_pre]:p-2.5 [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-white/10 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_code]:font-mono [&_code]:text-[11px] [&_code]:bg-white/[0.08] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:my-1.5 [&_p]:my-1.5 [&_h1]:text-sm [&_h1]:font-bold [&_h2]:text-xs [&_h2]:font-bold [&_h3]:text-xs [&_h3]:font-semibold"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
+// 1. Thought block: Thought for Xs > (Antigravity / Claude Code style)
 function ThoughtItem({ thought, duration, isLive }: { thought?: string; duration?: number; isLive?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="my-1 text-xs">
+    <div className="my-1 select-none">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 text-slate-400 hover:text-slate-300 transition-colors py-0.5 select-none"
+        className="inline-flex items-center gap-1.5 rounded bg-white/[0.04] hover:bg-white/[0.08] px-2 py-0.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
       >
-        {isLive && <Loader2 className="size-3 animate-spin text-cyan-400 mr-0.5" />}
+        {isLive && <Loader2 className="size-2.5 animate-spin text-cyan-400" />}
         <span>{isLive ? `Thinking (${duration ?? 1}s)` : duration ? `Thought for ${duration}s` : "Thought"}</span>
-        <ChevronRight className={cn("size-3 transition-transform text-slate-500", isOpen && "rotate-90")} />
+        <ChevronRight className={cn("size-3 text-slate-500 transition-transform", isOpen && "rotate-90")} />
       </button>
       {isOpen && thought && (
-        <div className="mt-1 ml-2 pl-2.5 border-l-2 border-white/10 text-[11px] text-slate-400 font-sans italic whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+        <div className="mt-1.5 ml-2 border-l border-white/10 pl-3 text-xs text-slate-400 font-sans leading-relaxed whitespace-pre-wrap">
           {thought}
         </div>
       )}
@@ -60,131 +77,124 @@ function ThoughtItem({ thought, duration, isLive }: { thought?: string; duration
   );
 }
 
-// Tool action indicator (Codex / Claude Code style)
-function ToolActionItem({
-  toolName,
+// 2. Analyzed action: Analyzed ⚛ filename.tsx #L1-50
+function AnalyzedActionItem({
   args,
   result,
   isDone,
 }: {
-  toolName: string;
   args?: Record<string, unknown>;
   result?: Record<string, unknown>;
   isDone: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-
-  if (toolName === "readFile") {
-    const rawPath = String(args?.path || "");
-    const filename = rawPath.split("/").pop() || "file";
-    const content = typeof result?.content === "string" ? result.content : null;
-
-    return (
-      <div className="my-1.5 text-xs text-slate-400 select-none">
-        <div className="flex items-center gap-1.5">
-          {!isDone ? (
-            <span className="flex items-center gap-1 text-cyan-300">
-              <Loader2 className="size-3 animate-spin text-cyan-400" />
-              <span>Reading</span>
-            </span>
-          ) : (
-            <span>Analyzed</span>
-          )}
-
-          <button
-            type="button"
-            onClick={() => content && setIsOpen(!isOpen)}
-            className={cn(
-              "inline-flex items-center gap-1 rounded bg-[#1e2029] border border-white/10 px-2 py-0.5 text-[11px] font-mono text-slate-200 transition-colors",
-              content ? "hover:border-cyan-400/40 hover:bg-[#252836] cursor-pointer" : "cursor-default",
-            )}
-            title={content ? "Click to view file content" : rawPath}
-          >
-            <FileCode2 className="size-3 text-cyan-400 shrink-0" />
-            <span className="truncate max-w-[160px]">{filename}</span>
-            {content && (
-              <ChevronRight className={cn("size-2.5 text-slate-500 transition-transform", isOpen && "rotate-90")} />
-            )}
-          </button>
-
-          {isDone ? (
-            <span className="text-[10px] text-slate-500 font-mono">
-              {content ? `${content.split("\n").length} lines` : ""}
-            </span>
-          ) : (
-            <span className="text-[10px] text-cyan-400/70 font-mono animate-pulse">reading...</span>
-          )}
-        </div>
-
-        {isOpen && content && (
-          <div className="mt-1.5 ml-2 rounded-md border border-white/10 bg-[#0d0e15] p-2 text-[11px] font-mono text-slate-300">
-            <div className="mb-1 text-[10px] text-slate-500 truncate">{rawPath}</div>
-            <pre className="max-h-48 overflow-auto whitespace-pre rounded bg-black/40 p-2 text-[10px] text-slate-300 leading-relaxed">
-              {content}
-            </pre>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (toolName === "listFiles") {
-    const fileList = Array.isArray(result?.files) ? (result.files as Array<{ path: string }>) : null;
-    return (
-      <div className="my-1 text-xs select-none">
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 text-slate-400 hover:text-slate-300 transition-colors py-0.5"
-        >
-          <FolderGit2 className="size-3 text-fuchsia-400 mr-0.5 shrink-0" />
-          <span>Explored {fileList !== null ? `${fileList.length} files` : "workspace files"}</span>
-          <ChevronRight className={cn("size-3 transition-transform text-slate-500", isOpen && "rotate-90")} />
-        </button>
-        {isOpen && fileList && (
-          <div className="mt-1 ml-3 max-h-36 overflow-y-auto space-y-0.5 pl-2 border-l border-white/10">
-            {fileList.map((f, i) => (
-              <div key={i} className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
-                <span className="text-slate-600">•</span>
-                <span className="truncate">{f.path}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (toolName === "writeFile") {
-    const rawPath = String(args?.path || "");
-    const filename = rawPath.split("/").pop() || "file";
-    return (
-      <div className="my-1 flex items-center gap-1.5 text-xs text-slate-400 select-none">
-        <span>Edited</span>
-        <span
-          title={rawPath}
-          className="inline-flex items-center gap-1 rounded bg-[#1e2029] border border-white/10 px-2 py-0.5 text-[11px] font-mono text-slate-200"
-        >
-          <FileCode2 className="size-3 text-emerald-400 shrink-0" />
-          <span className="truncate max-w-[160px]">{filename}</span>
-        </span>
-        <span className="text-[10px] font-mono text-emerald-400">proposed</span>
-      </div>
-    );
-  }
+  const rawPath = String(args?.path || "");
+  const filename = rawPath.split("/").pop() || "file";
+  const content = typeof result?.content === "string" ? result.content : null;
+  const lineCount = content ? content.split("\n").length : null;
 
   return (
-    <div className="my-1 text-xs text-slate-400 flex items-center gap-1">
-      <span>Executed</span>
-      <span className="font-mono text-[11px] text-slate-300">{toolName}</span>
-      {!isDone && <Loader2 className="size-2.5 animate-spin text-cyan-400" />}
+    <div className="my-1 select-none text-xs text-slate-400 flex flex-col items-start">
+      <div className="flex items-center gap-1.5">
+        {!isDone ? (
+          <span className="flex items-center gap-1 text-cyan-300">
+            <Loader2 className="size-3 animate-spin text-cyan-400" />
+            <span>Analyzing</span>
+          </span>
+        ) : (
+          <span>Analyzed</span>
+        )}
+
+        <button
+          type="button"
+          onClick={() => content && setIsOpen(!isOpen)}
+          className={cn(
+            "inline-flex items-center gap-1 text-slate-300 hover:text-cyan-300 font-mono transition-colors",
+            content ? "cursor-pointer hover:underline" : "cursor-default",
+          )}
+          title={rawPath}
+        >
+          <FileCode2 className="size-3 text-cyan-400 shrink-0" />
+          <span>{filename}</span>
+        </button>
+
+        {lineCount && (
+          <span className="text-slate-500 font-mono text-[11px]">#L1-{lineCount}</span>
+        )}
+      </div>
+
+      {isOpen && content && (
+        <div className="mt-1.5 ml-2 w-full max-w-full rounded bg-black/50 border border-white/10 p-2 text-xs font-mono text-slate-300">
+          <div className="text-[10px] text-slate-500 mb-1 truncate">{rawPath}</div>
+          <pre className="max-h-48 overflow-auto whitespace-pre text-[11px] text-slate-300 leading-relaxed scrollbar-thin">
+            {content}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
 
-// Parse text that may contain <think>...</think> blocks
+// 3. Explored action: Explored N files ›
+function ExploredActionItem({
+  result,
+  isDone,
+}: {
+  result?: Record<string, unknown>;
+  isDone: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const fileList = Array.isArray(result?.files) ? (result.files as Array<{ path: string }>) : null;
+
+  return (
+    <div className="my-1 select-none text-xs text-slate-400">
+      <button
+        type="button"
+        onClick={() => fileList && setIsOpen(!isOpen)}
+        className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-300 transition-colors py-0.5"
+      >
+        {!isDone ? (
+          <Loader2 className="size-3 animate-spin text-fuchsia-400 mr-0.5" />
+        ) : (
+          <FolderGit2 className="size-3 text-fuchsia-400 mr-0.5 shrink-0" />
+        )}
+        <span>Explored {fileList !== null ? `${fileList.length} files` : "workspace files"}</span>
+        <ChevronRight className={cn("size-3 text-slate-500 transition-transform", isOpen && "rotate-90")} />
+      </button>
+
+      {isOpen && fileList && (
+        <div className="mt-1 ml-2 max-h-36 overflow-y-auto space-y-0.5 border-l border-white/10 pl-2.5">
+          {fileList.map((f, i) => (
+            <div key={i} className="text-[11px] font-mono text-slate-400 truncate">
+              {f.path}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 4. Edited action: Edited ⚛ filename.tsx +proposed
+function EditedActionItem({ args }: { args?: Record<string, unknown> }) {
+  const rawPath = String(args?.path || "");
+  const filename = rawPath.split("/").pop() || "file";
+
+  return (
+    <div className="my-1 select-none text-xs text-slate-400 flex items-center gap-1.5">
+      <span>Edited</span>
+      <span className="inline-flex items-center gap-1 text-slate-300 font-mono" title={rawPath}>
+        <FileCode2 className="size-3 text-emerald-400 shrink-0" />
+        <span>{filename}</span>
+      </span>
+      <span className="text-[11px] font-mono text-emerald-400">+proposed</span>
+    </div>
+  );
+}
+
+// Parse text chunks for sequential <think> tags
 function parseTextAndThoughts(text: string) {
-  const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+  const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
   const parts: Array<{ type: "think" | "text"; content: string }> = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -192,18 +202,24 @@ function parseTextAndThoughts(text: string) {
   while ((match = thinkRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
       const before = text.slice(lastIndex, match.index);
-      if (before) parts.push({ type: "text", content: before });
+      if (before.trim()) parts.push({ type: "text", content: before });
     }
-    parts.push({ type: "think", content: match[1].trim() });
+    const thinkContent = match[1].trim();
+    if (thinkContent) {
+      parts.push({ type: "think", content: thinkContent });
+    }
     lastIndex = match.index + match[0].length;
   }
 
   const remaining = text.slice(lastIndex);
-  const openThinkMatch = remaining.match(/<think>([\s\S]*)$/);
+  const openThinkMatch = remaining.match(/<think>([\s\S]*)$/i);
   if (openThinkMatch && openThinkMatch.index !== undefined) {
     const before = remaining.slice(0, openThinkMatch.index);
-    if (before) parts.push({ type: "text", content: before });
-    parts.push({ type: "think", content: openThinkMatch[1] });
+    if (before.trim()) parts.push({ type: "text", content: before });
+    const unclosedThink = openThinkMatch[1].trim();
+    if (unclosedThink) {
+      parts.push({ type: "think", content: unclosedThink });
+    }
   } else if (remaining) {
     parts.push({ type: "text", content: remaining });
   }
@@ -211,75 +227,8 @@ function parseTextAndThoughts(text: string) {
   return parts;
 }
 
-// Professional markdown formatter for Claude Code / Codex style output
-function FormattedMarkdown({ text }: { text: string }) {
-  const lines = text.split("\n");
-
-  return (
-    <div className="space-y-1.5 text-xs text-[var(--foreground)] font-sans">
-      {lines.map((line, lineIdx) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <div key={lineIdx} className="h-1" />;
-        }
-
-        const isBullet = trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("• ");
-        const content = isBullet ? trimmed.replace(/^[-*•]\s+/, "") : line;
-        const rendered = renderInlineMarkdown(content);
-
-        if (isBullet) {
-          return (
-            <div key={lineIdx} className="flex items-start gap-2 pl-1.5">
-              <span className="text-slate-500 select-none text-[10px] mt-0.5">•</span>
-              <div className="flex-1 leading-5">{rendered}</div>
-            </div>
-          );
-        }
-
-        return (
-          <div key={lineIdx} className="leading-5">
-            {rendered}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function renderInlineMarkdown(text: string) {
-  // Split by inline code: `code`
-  const codeParts = text.split(/(`[^`]+`)/g);
-
-  return codeParts.map((part, i) => {
-    if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
-      const codeContent = part.slice(1, -1);
-      return (
-        <code
-          key={i}
-          className="mx-0.5 rounded bg-white/[0.08] border border-white/5 px-1.5 py-0.5 text-[11px] font-mono text-slate-200"
-        >
-          {codeContent}
-        </code>
-      );
-    }
-
-    // Split by bold: **bold**
-    const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
-    return boldParts.map((bPart, j) => {
-      if (bPart.startsWith("**") && bPart.endsWith("**") && bPart.length >= 4) {
-        return (
-          <strong key={`${i}-${j}`} className="font-semibold text-white">
-            {bPart.slice(2, -2)}
-          </strong>
-        );
-      }
-      return <span key={`${i}-${j}`}>{bPart}</span>;
-    });
-  });
-}
-
-// Assistant message component with activities/thoughts separated at top
-function AssistantMessageCard({
+// Assistant message rendering: exactly in chronological step sequence (Antigravity / Claude Code style)
+function AssistantMessageTimeline({
   parts,
   isWorking,
   thinkingSeconds,
@@ -288,142 +237,80 @@ function AssistantMessageCard({
   isWorking: boolean;
   thinkingSeconds: number;
 }) {
-  const [stepsOpen, setStepsOpen] = useState(false);
-
-  // Group all tool executions and thoughts
-  const activitySteps: Array<{
-    type: "tool" | "thought";
-    toolName?: string;
-    args?: Record<string, unknown>;
-    result?: Record<string, unknown>;
-    isDone?: boolean;
-    thought?: string;
-    duration?: number;
-  }> = [];
-
-  let finalText = "";
-
-  for (const part of parts) {
-    const type = String(part.type || "");
-
-    // 1. Tool execution part
-    if (type.startsWith("tool-") || type === "dynamic-tool" || type === "tool-invocation") {
-      const toolName = type.startsWith("tool-")
-        ? type.replace(/^tool-/, "")
-        : String(part.toolName || (part.toolInvocation as any)?.toolName || "tool");
-      const rawArgs = (part.args || (part.toolInvocation as any)?.args || part.input || {}) as Record<string, unknown>;
-      const rawResult = (part.result || (part.toolInvocation as any)?.result || part.output) as Record<string, unknown> | undefined;
-      const isDone = Boolean(rawResult !== undefined || part.state === "result" || part.state === "output-available");
-
-      activitySteps.push({
-        type: "tool",
-        toolName,
-        args: rawArgs,
-        result: rawResult,
-        isDone,
-      });
-      continue;
-    }
-
-    // 2. Reasoning part
-    if (type === "reasoning") {
-      const text = String(part.reasoning || part.text || "").trim();
-      if (text) {
-        activitySteps.push({
-          type: "thought",
-          thought: text,
-        });
-      }
-      continue;
-    }
-
-    // 3. Text part with potential embedded <think> blocks
-    if (type === "text") {
-      const rawText = String(part.text || "");
-      const parsed = parseTextAndThoughts(rawText);
-      for (const item of parsed) {
-        if (item.type === "think") {
-          activitySteps.push({
-            type: "thought",
-            thought: item.content,
-            duration: thinkingSeconds > 0 ? thinkingSeconds : undefined,
-          });
-        } else {
-          finalText += item.content;
-        }
-      }
-    }
-  }
-
-  const hasOnlyThought = activitySteps.length === 1 && activitySteps[0].type === "thought";
-  const headerLabel = hasOnlyThought
-    ? activitySteps[0].duration
-      ? `Thought for ${activitySteps[0].duration}s`
-      : "Thought"
-    : `Worked for ${thinkingSeconds > 0 ? `${thinkingSeconds}s` : "a few seconds"}`;
-
   return (
-    <div className="space-y-2">
-      {/* SEPARATE AT TOP: All activities & thinking grouped cleanly */}
-      {activitySteps.length > 0 && (
-        <div className="border-b border-white/5 pb-2">
-          <button
-            type="button"
-            onClick={() => setStepsOpen(!stepsOpen)}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors select-none py-0.5"
-          >
-            {isWorking && activitySteps.some((s) => s.type === "tool" && !s.isDone) && (
-              <Loader2 className="size-3 animate-spin text-cyan-400" />
-            )}
-            <span className="font-sans">{headerLabel}</span>
-            <ChevronRight className={cn("size-3 text-slate-500 transition-transform", stepsOpen && "rotate-90")} />
-          </button>
+    <div className="space-y-1.5 text-xs">
+      {parts.map((part, index) => {
+        const p = part as Record<string, unknown>;
+        const type = String(p.type || "");
 
-          {stepsOpen && (
-            <div className="mt-2 ml-1 space-y-1.5 border-l border-white/10 pl-2.5">
-              {activitySteps.map((step, idx) => {
-                if (step.type === "tool" && step.toolName) {
+        // Tool call part
+        if (type.startsWith("tool-") || type === "dynamic-tool" || type === "tool-invocation") {
+          const toolName = type.startsWith("tool-")
+            ? type.replace(/^tool-/, "")
+            : String(p.toolName || (p.toolInvocation as any)?.toolName || "tool");
+          const rawArgs = (p.args || (p.toolInvocation as any)?.args || p.input || {}) as Record<string, unknown>;
+          const rawResult = (p.result || (p.toolInvocation as any)?.result || p.output) as Record<string, unknown> | undefined;
+          const isDone = Boolean(rawResult !== undefined || p.state === "result" || p.state === "output-available");
+
+          if (toolName === "readFile") {
+            return <AnalyzedActionItem key={`part-${index}`} args={rawArgs} result={rawResult} isDone={isDone} />;
+          }
+          if (toolName === "listFiles") {
+            return <ExploredActionItem key={`part-${index}`} result={rawResult} isDone={isDone} />;
+          }
+          if (toolName === "writeFile") {
+            return <EditedActionItem key={`part-${index}`} args={rawArgs} />;
+          }
+          return (
+            <div key={`part-${index}`} className="my-1 text-xs text-slate-400 flex items-center gap-1 font-mono">
+              <span>Executed</span>
+              <span className="text-slate-200">{toolName}</span>
+              {!isDone && <Loader2 className="size-2.5 animate-spin text-cyan-400" />}
+            </div>
+          );
+        }
+
+        // Reasoning part
+        if (type === "reasoning") {
+          const text = String(p.reasoning || p.text || "").trim();
+          if (!text) return null;
+          return <ThoughtItem key={`part-${index}`} thought={text} duration={thinkingSeconds > 0 ? thinkingSeconds : undefined} />;
+        }
+
+        // Text part (which may contain embedded <think> tags)
+        if (type === "text") {
+          const rawText = String(p.text || "");
+          const parsed = parseTextAndThoughts(rawText);
+
+          return (
+            <div key={`part-${index}`} className="space-y-1.5">
+              {parsed.map((item, subIndex) => {
+                if (item.type === "think" && item.content.trim()) {
                   return (
-                    <ToolActionItem
-                      key={`step-${idx}`}
-                      toolName={step.toolName}
-                      args={step.args}
-                      result={step.result}
-                      isDone={Boolean(step.isDone)}
+                    <ThoughtItem
+                      key={`think-${subIndex}`}
+                      thought={item.content.trim()}
+                      duration={subIndex === 0 && thinkingSeconds > 0 ? thinkingSeconds : undefined}
                     />
                   );
                 }
-                if (step.type === "thought" && step.thought) {
-                  return (
-                    <ThoughtItem
-                      key={`step-${idx}`}
-                      thought={step.thought}
-                      duration={step.duration}
-                    />
-                  );
+                if (item.type === "text" && item.content.trim()) {
+                  return <MarkdownContent key={`text-${subIndex}`} content={item.content} />;
                 }
                 return null;
               })}
             </div>
-          )}
-        </div>
-      )}
+          );
+        }
 
-      {/* Clean final response text below */}
-      {finalText ? (
-        <div>
-          <FormattedMarkdown text={finalText} />
-          {isWorking && (
-            <span className="inline-block w-1.5 h-3 ml-0.5 bg-fuchsia-400 animate-pulse align-middle" />
-          )}
-        </div>
-      ) : null}
+        return null;
+      })}
 
-      {/* Active loading spinner below activity while model is working and no final text yet */}
-      {isWorking && !finalText && (
+      {/* Live spinner at the end of message if actively working */}
+      {isWorking && (
         <div className="flex items-center gap-2 pt-1 text-xs text-slate-400 select-none">
-          <Loader2 className="size-3.5 animate-spin text-cyan-400" />
-          <span className="text-[11px] font-sans">Thinking & preparing response…</span>
+          <Loader2 className="size-3 animate-spin text-cyan-400" />
+          <span className="text-[11px] font-sans">Thinking ({thinkingSeconds}s)...</span>
         </div>
       )}
     </div>
@@ -476,15 +363,6 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
     };
   }, [isSubmitted]);
 
-  const statusLabel =
-    error
-      ? "Error"
-      : isSubmitted
-      ? "Thinking"
-      : isStreaming
-      ? "Streaming"
-      : "Ready";
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = input.trim();
@@ -508,39 +386,9 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
     <aside className="relative flex h-full min-h-0 flex-col overflow-hidden border-l border-[var(--border-color)] bg-[#12131a] p-2 max-[800px]:hidden select-none">
       <div className="pointer-events-none absolute -right-24 -top-20 h-52 w-52 rounded-full bg-fuchsia-500/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-20 -left-24 h-52 w-52 rounded-full bg-cyan-400/10 blur-3xl" />
-      <Card className="relative flex min-h-0 flex-1 flex-col border-0 bg-transparent shadow-none">
-        <CardHeader className="flex h-9 shrink-0 flex-row items-center gap-2 bg-transparent p-1">
-          <Avatar className="size-6 rounded-lg bg-gradient-to-br from-fuchsia-500 to-cyan-400 text-white">
-            <AvatarFallback>
-              <Bot aria-hidden="true" className="size-3.5" />
-            </AvatarFallback>
-          </Avatar>
-          <CardTitle className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-            AI Assistant
-          </CardTitle>
-          <Badge
-            variant="outline"
-            className={`ml-auto gap-1 px-1.5 py-0 text-[10px] ${
-              error
-                ? "border-rose-400/30 text-rose-300"
-                : isLoading
-                ? "border-fuchsia-400/30 text-fuchsia-300"
-                : "border-emerald-400/30 text-emerald-300"
-            }`}
-          >
-            {error ? (
-              <AlertCircle aria-hidden="true" className="size-2.5" />
-            ) : isLoading ? (
-              <Loader2 aria-hidden="true" className="size-2.5 animate-spin" />
-            ) : (
-              <Circle aria-hidden="true" className="size-1.5 fill-current" />
-            )}
-            {statusLabel}
-          </Badge>
-        </CardHeader>
-        <Separator className="mt-2 bg-white/10" />
 
-        <ScrollArea ref={scrollAreaRef} className="flex-1 space-y-4 p-1 pt-3">
+      <Card className="relative flex min-h-0 flex-1 flex-col border-0 bg-transparent shadow-none">
+        <ScrollArea ref={scrollAreaRef} className="flex-1 space-y-4 p-1 pt-2">
           {messages.length === 0 && (
             <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.04] p-3">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white">
@@ -552,6 +400,7 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
               </p>
             </div>
           )}
+
           {messages.map((message, msgIndex) => {
             const isLastMessage = msgIndex === messages.length - 1;
             const isWorking = isLoading && isLastMessage && message.role === "assistant";
@@ -559,12 +408,12 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
             return (
               <div
                 key={message.id}
-                className={`mb-3.5 flex items-start gap-2 ${
+                className={`mb-4 flex items-start gap-2.5 ${
                   message.role === "user" ? "flex-row-reverse" : ""
                 }`}
               >
                 <Avatar
-                  className={`size-6 rounded-lg text-xs font-semibold ${
+                  className={`size-6 shrink-0 rounded-lg text-xs font-semibold ${
                     message.role === "user"
                       ? "bg-cyan-400/20 text-cyan-300"
                       : "bg-fuchsia-400/20 text-fuchsia-300"
@@ -578,23 +427,21 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
                     )}
                   </AvatarFallback>
                 </Avatar>
-                <div
-                  className={`min-w-0 max-w-[85%] space-y-1.5 rounded-xl px-3 py-2.5 ${
-                    message.role === "user"
-                      ? "rounded-tr-sm bg-cyan-400/15"
-                      : "rounded-tl-sm bg-white/[0.06]"
-                  }`}
-                >
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                    {message.role === "user" ? "You" : "Copilot"}
-                  </p>
 
+                <div
+                  className={cn(
+                    "min-w-0 max-w-[88%]",
+                    message.role === "user"
+                      ? "rounded-xl rounded-tr-sm bg-cyan-400/15 px-3 py-2 text-xs text-[var(--foreground)]"
+                      : "space-y-1.5 text-xs text-[var(--foreground)]",
+                  )}
+                >
                   {message.role === "user" ? (
-                    <div className="whitespace-pre-wrap break-words font-sans text-xs leading-5 text-[var(--foreground)]">
+                    <div className="whitespace-pre-wrap break-words font-sans text-xs leading-5">
                       {message.parts.map((p, i) => (p.type === "text" ? <span key={i}>{p.text}</span> : null))}
                     </div>
                   ) : (
-                    <AssistantMessageCard
+                    <AssistantMessageTimeline
                       parts={message.parts as Array<Record<string, unknown>>}
                       isWorking={Boolean(isWorking)}
                       thinkingSeconds={thinkingSeconds}
@@ -605,16 +452,17 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
             );
           })}
 
-          {/* Active Thinking state before assistant message begins */}
+          {/* Live Thinking Pill before assistant response begins */}
           {isSubmitted && messages.length > 0 && messages[messages.length - 1].role !== "assistant" && (
-            <div className="mb-3.5 flex items-start gap-2" role="status" aria-live="polite">
-              <Avatar className="size-6 rounded-lg bg-fuchsia-400/20 text-fuchsia-300">
+            <div className="mb-4 flex items-start gap-2.5" role="status" aria-live="polite">
+              <Avatar className="size-6 shrink-0 rounded-lg bg-fuchsia-400/20 text-fuchsia-300">
                 <AvatarFallback>
                   <Bot aria-hidden="true" className="size-3.5" />
                 </AvatarFallback>
               </Avatar>
-              <div className="min-w-0 rounded-xl rounded-tl-sm bg-white/[0.06] px-3 py-2">
-                <ThoughtItem isLive duration={thinkingSeconds} />
+              <div className="inline-flex items-center gap-1.5 rounded bg-white/[0.04] px-2 py-0.5 text-xs text-slate-400 select-none">
+                <Loader2 className="size-2.5 animate-spin text-cyan-400" />
+                <span>Thinking ({thinkingSeconds}s)</span>
               </div>
             </div>
           )}
