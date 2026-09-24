@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -141,12 +140,6 @@ export default function Header({
   const { theme, setTheme } = useTheme();
   const clerk = useClerk();
   const router = useRouter();
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("ai-code-editor-app-url", window.location.origin);
-    }
-  }, []);
 
   const manageReposUrl = installationId
     ? `https://github.com/settings/installations/${installationId}`

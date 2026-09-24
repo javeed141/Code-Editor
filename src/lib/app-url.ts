@@ -45,25 +45,3 @@ export function getAppBaseUrl(request?: NextRequest): string {
   return "http://localhost:3000";
 }
 
-/**
- * Returns the dynamic, matching GitHub OAuth callback URL for the active environment.
- */
-export function getGitHubCallbackUrl(request: NextRequest): string {
-  const envCallback = process.env.GITHUB_CALLBACK_URL;
-  const baseUrl = getAppBaseUrl(request);
-  const dynamicCallback = `${baseUrl}/api/auth/github/callback`;
-
-  // If the envCallback is configured for localhost but the request is coming from a live domain,
-  // prioritize the live domain's callback URL to prevent redirecting to localhost!
-  if (envCallback) {
-    const isLocalEnv = envCallback.includes("localhost");
-    const isRemoteRequest = !baseUrl.includes("localhost");
-    if (isLocalEnv && isRemoteRequest) {
-      return dynamicCallback;
-    }
-    return envCallback;
-  }
-
-  return dynamicCallback;
-}
-

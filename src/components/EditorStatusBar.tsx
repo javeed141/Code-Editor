@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Check, CircleAlert, RotateCcw, Save } from "lucide-react";
 import { Tooltip } from "@/src/components/ui/tooltip";
 
@@ -21,14 +20,6 @@ export default function EditorStatusBar({
   onDiscard,
   indexedDbStatus = "idle",
 }: EditorStatusBarProps) {
-  const [appUrl, setAppUrl] = useState<string>("");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("ai-code-editor-app-url") || window.location.origin;
-      setAppUrl(stored);
-    }
-  }, []);
   return (
     <footer className="flex h-6 shrink-0 items-center justify-between gap-3 border-t border-[var(--border-color)] bg-[var(--statusbar-bg)] px-2 text-[11px] text-[var(--statusbar-fg)] select-none">
       <div className="flex min-w-0 items-center gap-3">
@@ -71,14 +62,6 @@ export default function EditorStatusBar({
           <span className="hidden opacity-75 md:inline">UTF-8</span>
         </Tooltip>
         <span className="hidden opacity-75 md:inline">Spaces: 2</span>
-        {appUrl && (
-          <>
-            <span className="hidden opacity-40 lg:inline">|</span>
-            <span className="hidden opacity-75 lg:inline font-mono" title={`Active App URL: ${appUrl}`}>
-              🌐 {appUrl}
-            </span>
-          </>
-        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

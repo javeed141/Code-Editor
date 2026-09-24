@@ -2,7 +2,6 @@ import { getLanguageFromPath } from "@/src/lib/utils";
 import type { OpenFile } from "@/src/types/editor";
 
 export const SELECTED_REPOSITORY_STORAGE_KEY = "ai-code-editor-selected-repository";
-export const HOME_URL_STORAGE_KEY = "ai-code-editor-home-url";
 
 export function createOpenFile(
   path: string,
@@ -30,4 +29,3 @@ export function createOpenFile(
     message: options?.message,
   };
 }
-

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { GitHubUser } from "@/src/types/github";
-import { HOME_URL_STORAGE_KEY } from "../dashboardUtils";
 
 interface UseDashboardAuthProps {
   onLogoutCleanup?: () => void;
@@ -10,22 +9,12 @@ export function useDashboardAuth({ onLogoutCleanup }: UseDashboardAuthProps = {}
   const [authenticatedUser, setAuthenticatedUser] = useState<GitHubUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  useEffect(() => {
-    const homeUrl = new URL("/", window.location.origin).toString();
-    localStorage.setItem(HOME_URL_STORAGE_KEY, homeUrl);
-  }, []);
-
   const handleGitHubSignIn = useCallback(() => {
-    // Save the real browser domain before GitHub takes the user away. This is
-    // intentionally client-side: the server cannot read browser localStorage.
-    localStorage.setItem(HOME_URL_STORAGE_KEY, new URL("/", window.location.origin).toString());
     window.location.assign(new URL("/api/auth/github", window.location.origin));
   }, []);
 
   const handleLogout = useCallback(async () => {
-    const homeUrl =
-      localStorage.getItem(HOME_URL_STORAGE_KEY) ||
-      new URL("/", window.location.origin).toString();
+    const homeUrl = new URL("/", window.location.origin).toString();
 
     // 1. Tell the server to expire the session cookie
     try {
@@ -52,12 +41,10 @@ export function useDashboardAuth({ onLogoutCleanup }: UseDashboardAuthProps = {}
     try {
       sessionStorage.clear();
       const currentTheme = localStorage.getItem("ai-code-editor-theme");
-      const storedHomeUrl = localStorage.getItem(HOME_URL_STORAGE_KEY) || homeUrl;
       localStorage.clear();
       if (currentTheme) {
         localStorage.setItem("ai-code-editor-theme", currentTheme);
       }
-      localStorage.setItem(HOME_URL_STORAGE_KEY, storedHomeUrl);
     } catch {
       // ignore storage errors
     }
@@ -75,4 +62,3 @@ export function useDashboardAuth({ onLogoutCleanup }: UseDashboardAuthProps = {}
     handleLogout,
   };
 }
-
