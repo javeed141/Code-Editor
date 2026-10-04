@@ -22,6 +22,7 @@ import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Separator } from "@/src/components/ui/separator";
 import { Textarea } from "@/src/components/ui/textarea";
 import { cn } from "@/src/lib/cn";
+import type { AIPendingEdit } from "@/src/types/editor";
 
 type Workspace = {
   repository: string;
@@ -33,6 +34,16 @@ type Workspace = {
     language: string;
     isModified: boolean;
   }>;
+};
+
+type ChatPanelProps = {
+  workspace: Workspace;
+  /** Called when the AI proposes a file edit via writeFile tool */
+  onProposedEdit?: (path: string, proposedContent: string) => Promise<void> | void;
+  pendingAIEditList?: AIPendingEdit[];
+  onSelectPath?: (path: string) => void;
+  onAcceptAllAIEdits?: () => void;
+  onRejectAllAIEdits?: () => void;
 };
 
 // Markdown Content Renderer
@@ -176,18 +187,35 @@ function ExploredActionItem({
 }
 
 // 4. Edited action: Edited ⚛ filename.tsx +proposed
-function EditedActionItem({ args }: { args?: Record<string, unknown> }) {
+function EditedActionItem({
+  args,
+  result,
+  onReview,
+}: {
+  args?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  onReview?: () => void;
+}) {
   const rawPath = String(args?.path || "");
   const filename = rawPath.split("/").pop() || "file";
 
   return (
-    <div className="my-1 select-none text-xs text-slate-400 flex items-center gap-1.5">
+    <div className="my-1 select-none text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
       <span>Edited</span>
       <span className="inline-flex items-center gap-1 text-slate-300 font-mono" title={rawPath}>
         <FileCode2 className="size-3 text-emerald-400 shrink-0" />
         <span>{filename}</span>
       </span>
       <span className="text-[11px] font-mono text-emerald-400">+proposed</span>
+      {result && onReview && (
+        <button
+          type="button"
+          onClick={onReview}
+          className="ml-1 inline-flex items-center gap-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200 transition-colors font-medium"
+        >
+          Review changes →
+        </button>
+      )}
     </div>
   );
 }
@@ -232,10 +260,12 @@ function AssistantMessageTimeline({
   parts,
   isWorking,
   thinkingSeconds,
+  onProposedEdit,
 }: {
   parts: Array<Record<string, unknown>>;
   isWorking: boolean;
   thinkingSeconds: number;
+  onProposedEdit?: (path: string, content: string) => void;
 }) {
   return (
     <div className="space-y-1.5 text-xs">
@@ -245,11 +275,12 @@ function AssistantMessageTimeline({
 
         // Tool call part
         if (type.startsWith("tool-") || type === "dynamic-tool" || type === "tool-invocation") {
+          const inv = p.toolInvocation as Record<string, unknown> | undefined;
           const toolName = type.startsWith("tool-")
             ? type.replace(/^tool-/, "")
-            : String(p.toolName || (p.toolInvocation as any)?.toolName || "tool");
-          const rawArgs = (p.args || (p.toolInvocation as any)?.args || p.input || {}) as Record<string, unknown>;
-          const rawResult = (p.result || (p.toolInvocation as any)?.result || p.output) as Record<string, unknown> | undefined;
+            : String(p.toolName || inv?.toolName || "tool");
+          const rawArgs = (p.args || inv?.args || p.input || {}) as Record<string, unknown>;
+          const rawResult = (p.result || inv?.result || p.output) as Record<string, unknown> | undefined;
           const isDone = Boolean(rawResult !== undefined || p.state === "result" || p.state === "output-available");
 
           if (toolName === "readFile") {
@@ -259,7 +290,19 @@ function AssistantMessageTimeline({
             return <ExploredActionItem key={`part-${index}`} result={rawResult} isDone={isDone} />;
           }
           if (toolName === "writeFile") {
-            return <EditedActionItem key={`part-${index}`} args={rawArgs} />;
+            const path = String(rawArgs?.path || "");
+            const proposedContent = String(rawResult?.content ?? rawArgs?.content ?? "");
+            const handleReview = path && proposedContent && onProposedEdit
+              ? () => onProposedEdit(path, proposedContent)
+              : undefined;
+            return (
+              <EditedActionItem
+                key={`part-${index}`}
+                args={rawArgs}
+                result={rawResult}
+                onReview={handleReview}
+              />
+            );
           }
           return (
             <div key={`part-${index}`} className="my-1 text-xs text-slate-400 flex items-center gap-1 font-mono">
@@ -317,7 +360,7 @@ function AssistantMessageTimeline({
   );
 }
 
-export default function ChatPanel({ workspace }: { workspace: Workspace }) {
+export default function ChatPanel({ workspace, onProposedEdit }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -325,18 +368,13 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
   const [thinkingSeconds, setThinkingSeconds] = useState(0);
   const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const workspaceRef = useRef(workspace);
-  useEffect(() => {
-    workspaceRef.current = workspace;
-  }, [workspace]);
-
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/agent",
-        body: () => ({ workspace: workspaceRef.current }),
+        body: () => ({ workspace }),
       }),
-    [],
+    [workspace],
   );
 
   const { messages, sendMessage, status, error } = useChat({ transport });
@@ -346,10 +384,13 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
 
   useEffect(() => {
     if (isSubmitted) {
-      setThinkingSeconds(1);
+      const timer = setTimeout(() => {
+        setThinkingSeconds(1);
+      }, 0);
       thinkingTimerRef.current = setInterval(() => {
         setThinkingSeconds((s) => s + 1);
       }, 1000);
+      return () => clearTimeout(timer);
     } else {
       if (thinkingTimerRef.current) {
         clearInterval(thinkingTimerRef.current);
@@ -445,6 +486,7 @@ export default function ChatPanel({ workspace }: { workspace: Workspace }) {
                       parts={message.parts as Array<Record<string, unknown>>}
                       isWorking={Boolean(isWorking)}
                       thinkingSeconds={thinkingSeconds}
+                      onProposedEdit={onProposedEdit}
                     />
                   )}
                 </div>

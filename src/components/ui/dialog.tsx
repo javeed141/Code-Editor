@@ -60,3 +60,7 @@ export function DialogDescription({ className, ...props }: HTMLAttributes<HTMLPa
 export function DialogClose({ onClick, ...props }: React.ComponentProps<typeof Button>) {
   return <Button variant="ghost" size="icon" aria-label="Close dialog" onClick={onClick} {...props}><X className="size-4" /></Button>;
 }
+
+export function DialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("mt-4 flex justify-end gap-2", className)} {...props} />;
+}

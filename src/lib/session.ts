@@ -11,8 +11,23 @@ export type SessionData = {
 const SESSION_COOKIE_NAME = "github_session";
 const STATE_COOKIE_NAME = "github_oauth_state";
 
-const SECRET = process.env.SESSION_SECRET || "default_fallback_session_secret_32chars_min!";
-const KEY = crypto.createHash("sha256").update(SECRET).digest();
+function getSessionSecret(): Buffer {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[session] SESSION_SECRET environment variable is required in production. " +
+        "Set it to a random 32+ character string.",
+      );
+    }
+    // Development-only fallback — clearly marked as insecure
+    console.warn("[session] ⚠️  SESSION_SECRET not set — using insecure dev fallback. Do NOT use in production.");
+    return crypto.createHash("sha256").update("__dev_fallback_not_for_production__").digest();
+  }
+  return crypto.createHash("sha256").update(secret).digest();
+}
+
+const KEY = getSessionSecret();
 
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(12);

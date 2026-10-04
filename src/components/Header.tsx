@@ -6,6 +6,7 @@ import {
   Code2,
   Contrast,
   ExternalLink,
+  FileCode2,
   FolderGit2,
   GitCommitHorizontal,
   GitPullRequestDraft,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Moon,
   Palette,
+  Sparkles,
   Sun,
   TerminalSquare,
   Unlink,
@@ -43,6 +45,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import { useTheme } from "@/src/context/ThemeContext";
 import { themeIds, vscodeThemes, type ThemeId } from "@/src/lib/vscodeThemes";
+import type { AIPendingEdit } from "@/src/types/editor";
 import type { GitHubUser, SelectedRepository } from "@/src/types/github";
 import { Show, UserButton, useClerk } from "@clerk/nextjs";
 
@@ -62,6 +65,13 @@ type HeaderProps = {
   onOpenRepoModal: () => void;
   onLogout: () => void;
   onSignIn: () => void;
+  pendingAIEditList?: AIPendingEdit[];
+  selectedPath?: string | null;
+  onSelectPath?: (path: string) => void;
+  onAcceptAIEdit?: (path?: string) => void;
+  onRejectAIEdit?: (path?: string) => void;
+  onAcceptAllAIEdits?: () => void;
+  onRejectAllAIEdits?: () => void;
 };
 
 function GitHubLogo({ className = "size-3.5" }: { className?: string }) {
@@ -122,7 +132,7 @@ const THEME_CATEGORIES: ThemeCategory[] = [
 
 export default function Header({
   repositoryName,
-  hasModifiedFile,
+  hasModifiedFile: _hasModifiedFile,
   changedCount,
   isCommitting,
   onOpenChanges,
@@ -136,6 +146,13 @@ export default function Header({
   onOpenRepoModal,
   onLogout,
   onSignIn,
+  pendingAIEditList = [],
+  selectedPath,
+  onSelectPath,
+  onAcceptAIEdit,
+  onRejectAIEdit,
+  onAcceptAllAIEdits,
+  onRejectAllAIEdits,
 }: HeaderProps) {
   const { theme, setTheme } = useTheme();
   const clerk = useClerk();
@@ -196,6 +213,99 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-1.5">
+        {/* Top Navbar AI Proposal Controls */}
+        {pendingAIEditList.length > 0 && (
+          <div className="flex items-center gap-1.5 rounded-[4px] border border-fuchsia-500/30 bg-fuchsia-950/20 px-2 py-0.5 shadow-2xs mr-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="flex items-center gap-1.5 text-xs font-medium text-fuchsia-200 hover:text-white transition-colors cursor-pointer outline-none"
+                title="View AI proposal queue"
+              >
+                <Sparkles className="size-3 text-fuchsia-400" />
+                <span className="text-[11px] font-mono font-semibold text-fuchsia-300">
+                  {pendingAIEditList.length} Proposal{pendingAIEditList.length > 1 ? "s" : ""}
+                </span>
+                <ChevronDown className="size-3 text-fuchsia-400/80" />
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="right" className="w-72 p-1.5 bg-[var(--card-bg)] border border-[var(--border-color)] shadow-2xl">
+                <DropdownMenuLabel className="px-2 py-1 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider flex items-center justify-between">
+                  <span>Pending File Proposals</span>
+                  <span className="font-mono">{pendingAIEditList.length} files</span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="my-1" />
+                <div className="space-y-0.5 max-h-52 overflow-y-auto">
+                  {pendingAIEditList.map((proposal) => {
+                    const isSelected = selectedPath === proposal.path;
+                    return (
+                      <DropdownMenuItem
+                        key={proposal.path}
+                        onClick={() => onSelectPath?.(proposal.path)}
+                        className={cn(
+                          "flex items-center justify-between gap-2 px-2 py-1.5 text-xs font-mono rounded-[3px] cursor-pointer",
+                          isSelected
+                            ? "bg-[var(--list-active)] text-[var(--list-active-fg)] font-medium"
+                            : "hover:bg-[var(--list-hover)] text-[var(--foreground)]",
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <FileCode2 className="size-3 text-fuchsia-400 shrink-0" />
+                          <span className="truncate">{proposal.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAcceptAIEdit?.(proposal.path);
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors font-sans"
+                            title={`Accept ${proposal.name}`}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRejectAIEdit?.(proposal.path);
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-white/10 text-slate-300 hover:bg-white/20 transition-colors font-sans"
+                            title={`Discard ${proposal.name}`}
+                          >
+                            Discard
+                          </button>
+                        </div>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="flex items-center gap-1 border-l border-white/15 pl-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onRejectAllAIEdits?.()}
+                className="h-6 px-1.5 text-[11px] text-[var(--text-muted)] hover:text-[var(--foreground)] hover:bg-white/10 rounded-[3px]"
+                title="Discard all pending AI proposals"
+              >
+                Discard All
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => onAcceptAllAIEdits?.()}
+                className="h-6 px-2 text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-[3px] shadow-2xs"
+                title="Accept all pending AI proposals"
+              >
+                <Check className="size-3 mr-1" />
+                Accept All
+              </Button>
+            </div>
+          </div>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger
             className="hidden sm:inline-flex h-7 items-center gap-1.5 rounded-[4px] border border-[var(--border-color)] bg-[var(--card-bg)] px-2 py-0.5 text-xs text-[var(--foreground)] hover:bg-[var(--list-hover)] hover:border-[var(--accent-color)]/50 transition-all duration-150 cursor-pointer shadow-2xs"

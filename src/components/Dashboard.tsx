@@ -37,32 +37,55 @@ export default function Dashboard() {
     void workspace.fetchRepositories();
   };
 
-  // Check current session on mount and bootstrap workspace
+  // On mount: check session, load Supabase workspace hint, then fetch repos
   useEffect(() => {
     if (bootstrapStartedRef.current) return;
     bootstrapStartedRef.current = true;
 
-    async function checkAuth() {
+    async function bootstrap() {
       try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) {
-            auth.setAuthenticatedUser(data.user);
-            await workspace.fetchRepositories();
-          } else {
-            workspace.resetWorkspace();
-          }
+        // Step 1: Verify auth session
+        const authRes = await fetch("/api/auth/me");
+        if (!authRes.ok) {
+          workspace.resetWorkspace();
+          return;
         }
+        const authData = await authRes.json();
+        if (!authData.user) {
+          workspace.resetWorkspace();
+          return;
+        }
+        auth.setAuthenticatedUser(authData.user);
+
+        // Step 2: Load the user's last workspace from Supabase (cross-device restore)
+        let workspaceHint = null;
+        try {
+          const wsRes = await fetch("/api/workspaces");
+          if (wsRes.ok) {
+            const wsData = await wsRes.json();
+            if (wsData.workspace) {
+              workspaceHint = {
+                repoOwner: wsData.workspace.repo_owner,
+                repoName: wsData.workspace.repo_name,
+                selectedBranch: wsData.workspace.selected_branch,
+              };
+            }
+          }
+        } catch (err) {
+          console.warn("Could not load workspace hint from Supabase:", err);
+        }
+
+        // Step 3: Fetch repos and auto-select using the workspace hint
+        await workspace.fetchRepositories(workspaceHint);
       } catch (err) {
-        console.error("Auth check failed:", err);
+        console.error("Auth bootstrap failed:", err);
       } finally {
         auth.setAuthLoading(false);
       }
     }
 
-    checkAuth();
-  }, [auth, workspace]);
+    void bootstrap();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useKeyboardShortcuts({
     onOpenCommand: () => setCommandOpen(true),
@@ -77,7 +100,7 @@ export default function Dashboard() {
         changedCount={workspace.changedFiles.length}
         isCommitting={workspace.isCommitting}
         onOpenChanges={() => setChangesPanelOpen(true)}
-        onCommit={workspace.handleDirectCommit}
+        onCommit={() => setCommitDialogOpen(true)}
         onCommandOpen={() => setCommandOpen(true)}
         user={auth.authenticatedUser}
         authLoading={auth.authLoading}
@@ -87,6 +110,13 @@ export default function Dashboard() {
         onOpenRepoModal={openRepositoryPicker}
         onLogout={auth.handleLogout}
         onSignIn={auth.handleGitHubSignIn}
+        pendingAIEditList={workspace.pendingAIEditList}
+        selectedPath={workspace.selectedPath}
+        onSelectPath={workspace.setSelectedPath}
+        onAcceptAIEdit={workspace.acceptAIEdit}
+        onRejectAIEdit={workspace.rejectAIEdit}
+        onAcceptAllAIEdits={workspace.acceptAllAIEdits}
+        onRejectAllAIEdits={workspace.rejectAllAIEdits}
       />
 
       <ResizablePanelGroup className="flex-1 flex-row">
@@ -104,6 +134,10 @@ export default function Dashboard() {
             onOpenRepoModal={openRepositoryPicker}
             onSignIn={auth.handleGitHubSignIn}
             changedFiles={workspace.changedFiles}
+            onCreateFile={workspace.handleCreateFile}
+            onCreateFolder={workspace.handleCreateFolder}
+            onRename={workspace.handleRename}
+            onDelete={workspace.handleDelete}
           />
         </ResizablePanel>
 
@@ -121,6 +155,12 @@ export default function Dashboard() {
             onSelectPath={workspace.setSelectedPath}
             onCloseTab={workspace.handleCloseTab}
             onContentChange={workspace.handleContentChange}
+            pendingAIEdits={workspace.pendingAIEdits}
+            pendingAIEditList={workspace.pendingAIEditList}
+            onAcceptAIEdit={workspace.acceptAIEdit}
+            onRejectAIEdit={workspace.rejectAIEdit}
+            onAcceptAllAIEdits={workspace.acceptAllAIEdits}
+            onRejectAllAIEdits={workspace.rejectAllAIEdits}
           />
         </ResizablePanel>
 
@@ -136,6 +176,7 @@ export default function Dashboard() {
               files: workspace.workspaceFiles,
               currentFile: workspace.selectedFile?.path ?? null,
             }}
+            onProposedEdit={workspace.applyAIProposal}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

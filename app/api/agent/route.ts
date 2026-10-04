@@ -6,6 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/src/lib/auth-user";
 import { createWorkspaceTools } from "@/src/lib/ai/tools";
 import type { AIWorkspace } from "@/src/lib/ai/workspace";
 
@@ -37,6 +38,12 @@ function isWorkspace(value: unknown): value is AIWorkspace {
 }
 
 export async function POST(request: Request) {
+  // Auth guard — this endpoint costs real money per call
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
+  }
+
   let body: { messages?: unknown; workspace?: unknown };
 
   try {

@@ -3,7 +3,8 @@ import CodeEditor from "@/src/components/CodeEditor";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditorTabs } from "./EditorTabs";
-import type { OpenFile } from "@/src/types/editor";
+import { AIDiffEditor } from "./AIDiffEditor";
+import type { AIPendingEdit, OpenFile } from "@/src/types/editor";
 import type { SelectedRepository } from "@/src/types/github";
 
 function GitHubIcon({ className = "size-4" }: { className?: string }) {
@@ -31,6 +32,12 @@ interface EditorAreaProps {
   onSelectPath: (path: string) => void;
   onCloseTab: (path: string) => void;
   onContentChange: (content: string) => void;
+  pendingAIEdits?: Record<string, AIPendingEdit>;
+  pendingAIEditList?: AIPendingEdit[];
+  onAcceptAIEdit?: (path?: string) => void;
+  onRejectAIEdit?: (path?: string) => void;
+  onAcceptAllAIEdits?: () => void;
+  onRejectAllAIEdits?: () => void;
 }
 
 export function EditorArea({
@@ -44,7 +51,13 @@ export function EditorArea({
   onSelectPath,
   onCloseTab,
   onContentChange,
+  pendingAIEdits = {},
+  onAcceptAIEdit,
+  onRejectAIEdit,
 }: EditorAreaProps) {
+  const activeProposal = selectedPath ? pendingAIEdits[selectedPath] ?? null : null;
+  const showDiff = activeProposal != null && selectedFile != null && activeProposal.path === selectedFile.path;
+
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--editor-bg)]">
       {isLoading ? (
@@ -76,9 +89,7 @@ export function EditorArea({
             {selectedFile.isBinary ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-8 text-center select-none bg-[var(--editor-bg)] h-full">
                 <FileWarning className="mb-3 size-12 text-amber-400/80" />
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">
-                  {selectedFile.name}
-                </h3>
+                <h3 className="text-sm font-semibold text-[var(--foreground)]">{selectedFile.name}</h3>
                 <p className="mt-1.5 text-xs text-[var(--text-muted)]">
                   {selectedFile.message || "Binary file — preview unavailable"}
                 </p>
@@ -86,13 +97,17 @@ export function EditorArea({
             ) : selectedFile.isTooLarge ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-8 text-center select-none bg-[var(--editor-bg)] h-full">
                 <FileWarning className="mb-3 size-12 text-red-400/80" />
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">
-                  {selectedFile.name}
-                </h3>
+                <h3 className="text-sm font-semibold text-[var(--foreground)]">{selectedFile.name}</h3>
                 <p className="mt-1.5 text-xs text-[var(--text-muted)]">
                   {selectedFile.message || "This file is too large to preview."}
                 </p>
               </div>
+            ) : showDiff && activeProposal ? (
+              <AIDiffEditor
+                pendingEdit={activeProposal}
+                onAccept={() => onAcceptAIEdit?.(activeProposal.path)}
+                onReject={() => onRejectAIEdit?.(activeProposal.path)}
+              />
             ) : (
               <CodeEditor
                 path={selectedFile.path}
@@ -109,9 +124,7 @@ export function EditorArea({
             <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-[var(--card-bg)] border border-[var(--border-color)]">
               <GitHubIcon className="size-6 text-[var(--foreground)]" />
             </div>
-            <h3 className="text-base font-semibold text-[var(--foreground)]">
-              Connect to GitHub
-            </h3>
+            <h3 className="text-base font-semibold text-[var(--foreground)]">Connect to GitHub</h3>
             <p className="mt-2 text-xs text-[var(--text-muted)] leading-relaxed">
               Connect your GitHub account to access your repositories, browse files, and make edits.
             </p>
@@ -128,18 +141,16 @@ export function EditorArea({
           </div>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center p-8 text-center select-none bg-[var(--editor-bg)]">
-          <div>
-            <FolderGit2 className="mx-auto mb-3 size-10 text-[var(--text-muted)] opacity-40" />
-            <p className="text-sm font-medium text-[var(--foreground)]">
-              {selectedRepository ? "No file selected" : "No repository opened"}
-            </p>
-            <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-              {selectedRepository
-                ? "Select a file from the explorer to view its code."
-                : "Choose a repository from the explorer on the left to start."}
-            </p>
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-8 text-center select-none bg-[var(--editor-bg)]">
+          <FolderGit2 className="mx-auto mb-3 size-10 text-[var(--text-muted)] opacity-40" />
+          <p className="text-sm font-medium text-[var(--foreground)]">
+            {selectedRepository ? "No file selected" : "No repository opened"}
+          </p>
+          <p className="mt-1.5 text-xs text-[var(--text-muted)]">
+            {selectedRepository
+              ? "Select a file from the explorer to view its code."
+              : "Choose a repository from the explorer on the left to start."}
+          </p>
         </div>
       )}
     </section>

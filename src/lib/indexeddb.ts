@@ -20,6 +20,7 @@ export type StoredRepoFile = {
   language?: string;
   isBinary?: boolean;
   isModified?: boolean;
+  status?: "clean" | "modified" | "added" | "deleted";
   updatedAt: number;
 };
 
