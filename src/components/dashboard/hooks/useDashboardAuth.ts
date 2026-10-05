@@ -14,44 +14,24 @@ export function useDashboardAuth({ onLogoutCleanup }: UseDashboardAuthProps = {}
   }, []);
 
   const handleLogout = useCallback(async () => {
-    const homeUrl = new URL("/", window.location.origin).toString();
-
-    // 1. Tell the server to expire the session cookie
+    // 1. Tell the server to expire the GitHub session cookie
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Cache-Control": "no-cache" },
+      });
     } catch {
       // ignore network errors — still continue cleanup
     }
 
-    // 2. Clear in-memory React state
+    // 2. Clear in-memory React state for GitHub
     setAuthenticatedUser(null);
     onLogoutCleanup?.();
 
-    // 3. Nuke every client-readable cookie
-    try {
-      document.cookie.split(";").forEach((c) => {
-        const cookieName = c.split("=")[0].trim();
-        document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-      });
-    } catch {
-      // ignore
-    }
-
-    // 4. Clear ALL sessionStorage and localStorage (keep theme preference only)
-    try {
-      sessionStorage.clear();
-      const currentTheme = localStorage.getItem("ai-code-editor-theme");
-      localStorage.clear();
-      if (currentTheme) {
-        localStorage.setItem("ai-code-editor-theme", currentTheme);
-      }
-    } catch {
-      // ignore storage errors
-    }
-
-    // 5. Hard redirect to home — full page reload so no stale JS state remains
-    window.location.replace(homeUrl);
+    // 3. Force a reload so Next.js server components re-render without the GitHub session
+    window.location.reload();
   }, [onLogoutCleanup]);
+
 
   return {
     authenticatedUser,
@@ -62,3 +42,4 @@ export function useDashboardAuth({ onLogoutCleanup }: UseDashboardAuthProps = {}
     handleLogout,
   };
 }
+
