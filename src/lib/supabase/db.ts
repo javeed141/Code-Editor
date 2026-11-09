@@ -35,6 +35,32 @@ export async function upsertUser(user: UserInsert) {
 }
 
 /**
+ * Unlinks GitHub information for a user in the Supabase `users` table.
+ */
+export async function unlinkGitHubAccount(userId: string) {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("users")
+    .update({
+      github_user_id: null,
+      github_username: null,
+    })
+    .eq("id", userId)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error unlinking GitHub account in Supabase:", error);
+    return null;
+  }
+
+  return data;
+}
+
+
+/**
  * Fetches a user by their Clerk User ID.
  */
 export async function getUser(userId: string) {

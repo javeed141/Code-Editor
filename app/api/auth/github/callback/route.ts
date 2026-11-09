@@ -37,10 +37,13 @@ export async function GET(request: NextRequest) {
     const authUrl = new URL("https://github.com/login/oauth/authorize");
     authUrl.searchParams.set("client_id", clientId);
     authUrl.searchParams.set("redirect_uri", callbackUrl);
+    authUrl.searchParams.set("scope", "repo,read:user");
+    authUrl.searchParams.set("prompt", "consent");
     // We re-use the same state, but encode installation_id alongside it
     authUrl.searchParams.set("state", `${savedState}|${installationId}`);
     return NextResponse.redirect(authUrl.toString());
   }
+
 
   // ── STEP 2: OAuth authorization callback (has "code") ────────────────────────
   // GitHub redirects here after user clicks "Authorize" on the OAuth screen.
